@@ -1,0 +1,9 @@
+# Prevent PHP execution in upload directories
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+
+# Fallback for non-mod_php
+<FilesMatch "\.php$">
+    deny from all
+</FilesMatch>

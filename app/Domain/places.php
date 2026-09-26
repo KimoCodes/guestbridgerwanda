@@ -1,0 +1,393 @@
+<?php
+/**
+ * Partner Hotels & Places — public directory module.
+ * (Loaded from db_init and public pages; requires config.php for APP_NAME / session helpers.)
+ */
+
+function ensure_partner_places_tables(PDO $pdo): void
+{
+    $pdo->exec("CREATE TABLE IF NOT EXISTS partner_places (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        slug VARCHAR(120) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        location VARCHAR(255) NOT NULL DEFAULT '',
+        description TEXT,
+        featured_image VARCHAR(500) NOT NULL DEFAULT '',
+        video_url VARCHAR(500) NULL,
+        status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+        sort_order INT NOT NULL DEFAULT 0,
+        business_id INT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY (slug),
+        FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS place_gallery (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        place_id INT NOT NULL,
+        image_url VARCHAR(500) NOT NULL,
+        caption VARCHAR(255) NULL,
+        sort_order INT NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (place_id) REFERENCES partner_places(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS place_referrals (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        place_id INT NOT NULL,
+        worker_name VARCHAR(255) NOT NULL,
+        hotel_ref_code VARCHAR(100) NOT NULL,
+        generated_referral_code VARCHAR(32) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY (generated_referral_code),
+        FOREIGN KEY (place_id) REFERENCES partner_places(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
+    ensure_place_content_columns($pdo);
+}
+
+function ensure_place_content_columns(PDO $pdo): void
+{
+    $columns = [
+        'banner_image' => "ALTER TABLE partner_places ADD banner_image VARCHAR(500) NULL AFTER featured_image",
+        'promo_tagline' => "ALTER TABLE partner_places ADD promo_tagline VARCHAR(255) NULL AFTER banner_image",
+        'is_featured' => "ALTER TABLE partner_places ADD is_featured TINYINT(1) NOT NULL DEFAULT 0 AFTER promo_tagline",
+        'specialties' => "ALTER TABLE partner_places ADD specialties TEXT NULL AFTER promo_tagline",
+        'amenities' => "ALTER TABLE partner_places ADD amenities TEXT NULL AFTER specialties",
+        'extended_about' => "ALTER TABLE partner_places ADD extended_about TEXT NULL AFTER amenities",
+        'price_range' => "ALTER TABLE partner_places ADD price_range VARCHAR(120) NULL AFTER extended_about",
+        'contact_phone' => "ALTER TABLE partner_places ADD contact_phone VARCHAR(80) NULL AFTER price_range",
+        'contact_email' => "ALTER TABLE partner_places ADD contact_email VARCHAR(255) NULL AFTER contact_phone",
+        'website_url' => "ALTER TABLE partner_places ADD website_url VARCHAR(500) NULL AFTER contact_email",
+        'hours_info' => "ALTER TABLE partner_places ADD hours_info VARCHAR(500) NULL AFTER website_url",
+    ];
+    foreach ($columns as $col => $sql) {
+        $stmt = $pdo->prepare('SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
+        $stmt->execute(['partner_places', $col]);
+        if ((int) $stmt->fetchColumn() === 0) {
+            $pdo->exec($sql);
+        }
+    }
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS place_banners (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        place_id INT NOT NULL,
+        title VARCHAR(120) NULL,
+        image_url VARCHAR(500) NOT NULL,
+        link_url VARCHAR(500) NULL,
+        sort_order INT NOT NULL DEFAULT 0,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (place_id) REFERENCES partner_places(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+}
+
+function places_list_active(PDO $pdo): array
+{
+    $stmt = $pdo->query('SELECT id, slug, name, location, description, featured_image, banner_image, promo_tagline,
+        specialties, amenities, price_range, is_featured, business_id
+        FROM partner_places WHERE status = "active" ORDER BY is_featured DESC, sort_order ASC, name ASC');
+    return $stmt->fetchAll();
+}
+
+function places_get_by_id(PDO $pdo, int $id): ?array
+{
+    $stmt = $pdo->prepare('SELECT * FROM partner_places WHERE id = ? AND status = "active" LIMIT 1');
+    $stmt->execute([$id]);
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
+
+function places_get_by_slug(PDO $pdo, string $slug): ?array
+{
+    $stmt = $pdo->prepare('SELECT * FROM partner_places WHERE slug = ? AND status = "active" LIMIT 1');
+    $stmt->execute([$slug]);
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
+
+function places_gallery_for(PDO $pdo, int $place_id): array
+{
+    $stmt = $pdo->prepare('SELECT id, image_url, caption FROM place_gallery WHERE place_id = ? ORDER BY sort_order ASC, id ASC');
+    $stmt->execute([$place_id]);
+    return $stmt->fetchAll();
+}
+
+function places_public_asset_url(string $path): string
+{
+    $path = ltrim(trim($path), '/');
+    if ($path === '') {
+        return '';
+    }
+    $base = defined('BASE_URL') ? rtrim((string) BASE_URL, '/') : '';
+    return ($base !== '' ? $base . '/' : '/') . $path;
+}
+
+function places_image_url(string $path): string
+{
+    $path = trim($path);
+    if ($path === '') {
+        return 'https://images.unsplash.com/photo-1566073771259-6a8506099f29?w=800&h=600&fit=crop';
+    }
+    if (preg_match('#^https?://#i', $path)) {
+        return $path;
+    }
+    return places_public_asset_url($path);
+}
+
+function places_is_stock_placeholder(string $path): bool
+{
+    return stripos($path, 'unsplash.com') !== false || stripos($path, 'images.unsplash') !== false;
+}
+
+/**
+ * Featured image for a listing: partner_places.featured_image, else hotel manager profile logo.
+ */
+function places_resolve_listing_image(PDO $pdo, array $place): string
+{
+    $featured = trim($place['featured_image'] ?? '');
+    if ($featured !== '' && !places_is_stock_placeholder($featured)) {
+        return $featured;
+    }
+    $business_id = (int) ($place['business_id'] ?? 0);
+    if ($business_id > 0) {
+        $stmt = $pdo->prepare('SELECT profile_image FROM users
+            WHERE business_id = ? AND profile_image IS NOT NULL AND profile_image != ""
+            ORDER BY FIELD(role, "manager", "receptionist", "concierge"), id ASC LIMIT 1');
+        $stmt->execute([$business_id]);
+        $profile = $stmt->fetchColumn();
+        if ($profile !== false && trim((string) $profile) !== '') {
+            return (string) $profile;
+        }
+    }
+    return $featured;
+}
+
+function places_slugify(string $name): string
+{
+    $slug = strtolower(trim($name));
+    $slug = preg_replace('/[^a-z0-9]+/', '-', $slug);
+    return trim($slug, '-') ?: 'place';
+}
+
+function places_video_embed_url(?string $url): ?string
+{
+    if ($url === null || trim($url) === '') {
+        return null;
+    }
+    $url = trim($url);
+    if (preg_match('#^uploads/places/#', $url)) {
+        return null;
+    }
+    if (preg_match('#youtube\.com/embed/([a-zA-Z0-9_-]+)#', $url, $m)) {
+        return 'https://www.youtube.com/embed/' . $m[1];
+    }
+    if (preg_match('#(?:youtube\.com/watch\?v=|youtu\.be/)([a-zA-Z0-9_-]+)#', $url, $m)) {
+        return 'https://www.youtube.com/embed/' . $m[1];
+    }
+    if (preg_match('#vimeo\.com/(?:video/)?(\d+)#', $url, $m)) {
+        return 'https://player.vimeo.com/video/' . $m[1];
+    }
+    if (preg_match('#^https?://#i', $url)) {
+        return $url;
+    }
+    return null;
+}
+
+/**
+ * Resolve video for public pages: embedded (YouTube/Vimeo/URL) or uploaded file.
+ *
+ * @return array{mode: string, src: string}|null
+ */
+function places_video_playback(?string $url): ?array
+{
+    if ($url === null || trim($url) === '') {
+        return null;
+    }
+    $url = trim($url);
+    if (preg_match('#^uploads/places/#', $url) || preg_match('#\.(mp4|webm|mov)(\?.*)?$#i', $url)) {
+        return ['mode' => 'file', 'src' => places_image_url($url)];
+    }
+    $embed = places_video_embed_url($url);
+    if ($embed !== null) {
+        return ['mode' => 'embed', 'src' => $embed];
+    }
+    return null;
+}
+
+function places_video_data_attrs(?array $video): string
+{
+    if ($video === null) {
+        return '';
+    }
+    return ' data-video-open="' . htmlspecialchars($video['src'], ENT_QUOTES, 'UTF-8') . '"'
+        . ' data-video-mode="' . htmlspecialchars($video['mode'], ENT_QUOTES, 'UTF-8') . '"';
+}
+
+function generate_place_referral_code(PDO $pdo): string
+{
+    do {
+        $code = 'GB-' . strtoupper(bin2hex(random_bytes(4)));
+        $stmt = $pdo->prepare('SELECT id FROM place_referrals WHERE generated_referral_code = ? LIMIT 1');
+        $stmt->execute([$code]);
+    } while ($stmt->fetch());
+
+    return $code;
+}
+
+function places_create_referral(PDO $pdo, int $place_id, string $worker_name, string $hotel_ref_code): array
+{
+    $worker_name = trim($worker_name);
+    $hotel_ref_code = trim($hotel_ref_code);
+    if ($worker_name === '' || $hotel_ref_code === '') {
+        return ['ok' => false, 'error' => 'Worker name and hotel reference code are required.'];
+    }
+    if (!places_get_by_id($pdo, $place_id)) {
+        return ['ok' => false, 'error' => 'This place is no longer available.'];
+    }
+
+    $code = generate_place_referral_code($pdo);
+    $stmt = $pdo->prepare('INSERT INTO place_referrals (place_id, worker_name, hotel_ref_code, generated_referral_code) VALUES (?, ?, ?, ?)');
+    $stmt->execute([$place_id, $worker_name, $hotel_ref_code, $code]);
+
+    return [
+        'ok' => true,
+        'code' => $code,
+        'id' => (int) $pdo->lastInsertId(),
+    ];
+}
+
+/**
+ * Turn newline- or comma-separated manager input into a clean list.
+ */
+function places_parse_list_field(?string $text): array
+{
+    if ($text === null || trim($text) === '') {
+        return [];
+    }
+    $parts = preg_split('/[\r\n,]+/', $text) ?: [];
+    $out = [];
+    foreach ($parts as $p) {
+        $p = trim($p);
+        if ($p !== '') {
+            $out[] = $p;
+        }
+    }
+    return $out;
+}
+
+function places_public_details_filled(array $place): bool
+{
+    foreach (['specialties', 'amenities', 'extended_about', 'price_range', 'contact_phone', 'contact_email', 'website_url', 'hours_info'] as $key) {
+        if (!empty(trim($place[$key] ?? ''))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function places_excerpt(?string $text, int $max = 140): string
+{
+    $text = trim(strip_tags((string) $text));
+    if ($text === '') {
+        return '';
+    }
+    if (mb_strlen($text) <= $max) {
+        return $text;
+    }
+    return rtrim(mb_substr($text, 0, $max - 1)) . '…';
+}
+
+function places_selling_highlights(): array
+{
+    return [
+        ['icon' => 'shield', 'title' => 'Verified partner', 'text' => 'Listed on the GuestBridge hospitality network'],
+        ['icon' => 'users', 'title' => 'Trusted referrals', 'text' => 'Recommended by leading hotels across Rwanda'],
+        ['icon' => 'sparkles', 'title' => 'Curated experiences', 'text' => 'Hand-picked stays, dining, wellness & tours'],
+        ['icon' => 'map', 'title' => 'Prime locations', 'text' => 'Easy to reach from Kigali and major routes'],
+    ];
+}
+
+function places_logo_path(): string
+{
+    return places_public_asset_url('assets/guestbridge-mark.svg');
+}
+
+function places_render_public_head(string $title, string $description = '', bool $detail_page = false): void
+{
+    $desc = $description !== '' ? htmlspecialchars($description, ENT_QUOTES, 'UTF-8') : 'Browse partner hotels and places in Rwanda.';
+    $body_class = 'places-public-body' . ($detail_page ? ' places-detail-page' : ' places-list-page');
+    echo '<!DOCTYPE html><html lang="en"><head>';
+    echo '<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">';
+    echo '<title>' . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . ' — ' . htmlspecialchars(APP_NAME, ENT_QUOTES, 'UTF-8') . '</title>';
+    echo '<meta name="description" content="' . $desc . '">';
+    echo '<link rel="preconnect" href="https://fonts.googleapis.com">';
+    echo '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>';
+    echo '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700&display=swap">';
+    echo '<link rel="stylesheet" href="' . places_public_asset_url('assets/places-public.css?v=20260525') . '">';
+    echo '<link rel="icon" href="' . places_logo_path() . '" type="image/svg+xml">';
+    echo '</head><body class="' . $body_class . '">';
+}
+
+function places_render_header(string $active = 'list'): void
+{
+    $user = current_user();
+    $partner_places_url = gb_url('partner_places.php');
+    $dashboard_url = gb_url('dashboard.php');
+    $login_url = gb_url('login.php');
+
+    echo '<header class="places-site-header">';
+    echo '<div class="places-header-inner">';
+    echo '<a href="' . htmlspecialchars($partner_places_url, ENT_QUOTES, 'UTF-8') . '" class="places-brand">';
+    echo '<img src="' . places_logo_path() . '" width="40" height="40" alt="" class="places-brand-mark">';
+    echo '<span class="places-brand-text"><span class="places-brand-name">' . htmlspecialchars(APP_NAME, ENT_QUOTES, 'UTF-8') . '</span>';
+    echo '<span class="places-brand-tagline">Partner Hotels &amp; Places</span></span></a>';
+    echo '<nav class="places-header-nav" aria-label="Main">';
+    echo '<a href="' . htmlspecialchars($partner_places_url, ENT_QUOTES, 'UTF-8') . '" class="places-nav-link' . ($active === 'list' ? ' is-active' : '') . '">Discover</a>';
+    echo '<a href="' . htmlspecialchars($partner_places_url . '#places-grid', ENT_QUOTES, 'UTF-8') . '" class="places-nav-link">Destinations</a>';
+    if ($user) {
+        echo '<a href="' . htmlspecialchars($dashboard_url, ENT_QUOTES, 'UTF-8') . '" class="places-nav-link places-nav-cta">Dashboard</a>';
+    } else {
+        echo '<a href="' . htmlspecialchars($login_url, ENT_QUOTES, 'UTF-8') . '" class="places-nav-link places-nav-cta">Staff login</a>';
+    }
+    echo '</nav></div></header>';
+}
+
+function places_render_footer(): void
+{
+    $year = date('Y');
+    $partner_places_url = gb_url('partner_places.php');
+    $login_url = gb_url('login.php');
+    $register_url = gb_url('register.php');
+
+    echo '<footer class="places-site-footer">';
+    echo '<div class="places-footer-inner">';
+    echo '<div class="places-footer-brand">';
+    echo '<a href="' . htmlspecialchars($partner_places_url, ENT_QUOTES, 'UTF-8') . '" class="places-brand places-brand-footer">';
+    echo '<img src="' . places_logo_path() . '" width="36" height="36" alt="">';
+    echo '<span class="places-brand-text"><span class="places-brand-name">' . htmlspecialchars(APP_NAME, ENT_QUOTES, 'UTF-8') . '</span>';
+    echo '<span class="places-brand-tagline">Rwanda referral network</span></span></a>';
+    echo '<p class="places-footer-about">Connecting hotels, guests, and exceptional local partners through trusted referrals and curated experiences.</p>';
+    echo '</div>';
+    echo '<div class="places-footer-col"><h4>Explore</h4><ul>';
+    echo '<li><a href="' . htmlspecialchars($partner_places_url, ENT_QUOTES, 'UTF-8') . '">All partner places</a></li>';
+    echo '<li><a href="' . htmlspecialchars($login_url, ENT_QUOTES, 'UTF-8') . '">Hotel staff login</a></li>';
+    echo '<li><a href="' . htmlspecialchars($register_url, ENT_QUOTES, 'UTF-8') . '">Register your business</a></li>';
+    echo '</ul></div>';
+    echo '<div class="places-footer-col"><h4>For hotels</h4><ul>';
+    echo '<li><a href="' . htmlspecialchars($login_url, ENT_QUOTES, 'UTF-8') . '">Create referrals</a></li>';
+    echo '<li><a href="' . htmlspecialchars($partner_places_url, ENT_QUOTES, 'UTF-8') . '">Browse partners</a></li>';
+    echo '</ul></div>';
+    echo '<div class="places-footer-col"><h4>Contact</h4><ul>';
+    echo '<li><span>Kigali, Rwanda</span></li>';
+    echo '<li><a href="mailto:hello@guestbridge.rw">hello@guestbridge.rw</a></li>';
+    echo '</ul></div>';
+    echo '</div>';
+    echo '<div class="places-footer-bottom">';
+    echo '<p>&copy; ' . $year . ' ' . htmlspecialchars(APP_NAME, ENT_QUOTES, 'UTF-8') . '. All rights reserved.</p>';
+    echo '<p class="places-footer-legal">Partner listings are provided for referral purposes by participating businesses.</p>';
+    echo '</div></footer>';
+    echo '<script src="' . places_public_asset_url('assets/places-public.js?v=20260525') . '"></script>';
+    echo '</body></html>';
+}

@@ -1,0 +1,64 @@
+RewriteEngine On
+DirectoryIndex public/index.php
+
+# Block internal directories
+RewriteRule ^app/ - [F,L]
+RewriteRule ^docs/ - [F,L]
+RewriteRule ^database/ - [F,L]
+RewriteRule ^vendor/ - [F,L]
+RewriteRule ^composer\.(json|lock)$ - [F,L]
+
+# Serve existing files/directories directly
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# === URL PRESERVATION: Map old URLs to new internal paths ===
+
+# Auth pages
+RewriteRule ^login\.php$ public/auth/login.php [L]
+RewriteRule ^register\.php$ public/auth/register.php [L]
+RewriteRule ^logout\.php$ public/auth/logout.php [L]
+RewriteRule ^forgot_password\.php$ public/auth/forgot_password.php [L]
+RewriteRule ^reset_password\.php$ public/auth/reset_password.php [L]
+
+# Referral pages
+RewriteRule ^create_referral\.php$ public/referrals/create.php [L]
+RewriteRule ^view_referral\.php$ public/referrals/view.php [L]
+RewriteRule ^voucher_referral\.php$ public/referrals/voucher.php [L]
+RewriteRule ^history\.php$ public/referrals/history.php [L]
+RewriteRule ^referral\.php$ public/referrals/landing.php [L]
+RewriteRule ^verify_referral\.php$ public/referrals/verify.php [L]
+RewriteRule ^referral/verify/([a-zA-Z0-9_-]+)$ public/referrals/verify.php?code=$1 [QSA,L]
+
+# Financial pages
+RewriteRule ^wallet\.php$ public/financial/wallet.php [L]
+RewriteRule ^transactions\.php$ public/financial/transactions.php [L]
+RewriteRule ^commissions\.php$ public/financial/commissions.php [L]
+RewriteRule ^billing\.php$ public/financial/billing.php [L]
+RewriteRule ^payments\.php$ public/financial/payments.php [L]
+RewriteRule ^statements\.php$ public/financial/statements.php [L]
+RewriteRule ^statement_print\.php$ public/financial/statement-print.php [L]
+RewriteRule ^invoice\.php$ public/financial/invoice.php [L]
+RewriteRule ^settlement_summary\.php$ public/financial/settlement-summary.php [L]
+RewriteRule ^reconciliation\.php$ public/financial/reconciliation.php [L]
+RewriteRule ^record_transaction\.php$ public/financial/record-transaction.php [L]
+
+# Partner pages
+RewriteRule ^partner_places\.php$ public/partners/directory.php [L]
+RewriteRule ^place\.php$ public/partners/place.php [L]
+RewriteRule ^partners\.php$ public/partners/list.php [L]
+RewriteRule ^partnerships\.php$ public/partners/partnerships.php [L]
+
+# Team pages
+RewriteRule ^staff\.php$ public/team/staff.php [L]
+RewriteRule ^staff_earnings\.php$ public/team/earnings.php [L]
+RewriteRule ^incentives\.php$ public/team/incentives.php [L]
+RewriteRule ^guest_benefits\.php$ public/team/guest-benefits.php [L]
+RewriteRule ^performance\.php$ public/team/performance.php [L]
+RewriteRule ^my_identity\.php$ public/team/my-identity.php [L]
+RewriteRule ^staff_identities\.php$ public/team/staff-identities.php [L]
+
+# Default: route to public/
+RewriteRule ^$ public/index.php [L]
+RewriteRule ^(.+)$ public/$1 [L]

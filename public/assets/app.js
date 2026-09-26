@@ -40,7 +40,8 @@
             if (e.key === 'Enter') {
                 var q = input.value.trim();
                 if (q) {
-                    window.location.href = 'history.php?q=' + encodeURIComponent(q);
+                    var base = (typeof window.GB_BASE === 'string') ? window.GB_BASE : '';
+                    window.location.href = base + '/history.php?q=' + encodeURIComponent(q);
                 }
             }
         });

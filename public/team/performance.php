@@ -117,7 +117,7 @@ require_once __DIR__ . '/../../app/HTTP/helpers.php';
             <?php echo render_page_header(
                 'Referral Performance',
                 'Your referral stats and leaderboard position.',
-                $is_manager ? [['href' => 'my-identity.php', 'label' => 'My Identity', 'style' => 'outline-primary']] : []
+                $is_manager ? [['href' => 'my_identity.php', 'label' => 'My Identity', 'style' => 'outline-primary']] : []
             ); ?>
 
             <?php if ($is_manager && $all_staff): ?>

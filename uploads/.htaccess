@@ -1,1 +1,13 @@
+# Legacy upload storage at the project root (receipts, etc.).
+# This directory occupies the same /uploads/ URL path as public/uploads/,
+# so it must NOT blanket-deny the namespace — root .htaccess rewrites
+# /uploads/... to public/uploads/... for partner photos and gallery images.
 Options -Indexes
+
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+
+<FilesMatch "\.php$">
+    Require all denied
+</FilesMatch>

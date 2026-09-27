@@ -232,7 +232,7 @@ class SettlementService
         $items = $this->getSettlementItems($settlement_id);
         foreach ($items as $item) {
             if ($item['commission_id']) {
-                $this->pdo->prepare('UPDATE commission_allocations SET status = "settled", settled_at = NOW() WHERE commission_id = ? AND status = "pending"')->execute([$item['commission_id']]);
+                $this->pdo->prepare('UPDATE commission_allocations SET status = \'settled\', settled_at = NOW() WHERE commission_id = ? AND status = \'pending\'')->execute([$item['commission_id']]);
             }
         }
     }

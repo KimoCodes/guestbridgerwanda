@@ -24,25 +24,25 @@ if ($month !== '' && !preg_match('/^\d{4}-\d{2}$/', $month)) {
     $month = date('Y-m');
 }
 
-$stmt = $pdo->prepare('SELECT IFNULL(SUM(amount),0) AS earned FROM commissions WHERE owed_to_business_id = ? AND month = ?');
+$stmt = $pdo->prepare('SELECT COALESCE(SUM(amount),0) AS earned FROM commissions WHERE owed_to_business_id = ? AND month = ?');
 $stmt->execute([$business_id, $month]);
 $earned = (float)$stmt->fetch()['earned'];
 
-$stmt = $pdo->prepare('SELECT IFNULL(SUM(amount),0) AS owed FROM commissions WHERE target_business_id = ? AND month = ?');
+$stmt = $pdo->prepare('SELECT COALESCE(SUM(amount),0) AS owed FROM commissions WHERE target_business_id = ? AND month = ?');
 $stmt->execute([$business_id, $month]);
 $owed = (float)$stmt->fetch()['owed'];
 
-$stmt = $pdo->prepare('SELECT IFNULL(SUM(p.amount),0) AS paid_out
+$stmt = $pdo->prepare('SELECT COALESCE(SUM(p.amount),0) AS paid_out
     FROM payments p
     JOIN commissions c ON c.id = p.commission_id
-    WHERE c.target_business_id = ? AND DATE_FORMAT(p.paid_at, "%Y-%m") = ?');
+    WHERE c.target_business_id = ? AND to_char(p.paid_at, \'YYYY-MM\') = ?');
 $stmt->execute([$business_id, $month]);
 $paid_out = (float)$stmt->fetch()['paid_out'];
 
-$stmt = $pdo->prepare('SELECT IFNULL(SUM(p.amount),0) AS received
+$stmt = $pdo->prepare('SELECT COALESCE(SUM(p.amount),0) AS received
     FROM payments p
     JOIN commissions c ON c.id = p.commission_id
-    WHERE c.owed_to_business_id = ? AND DATE_FORMAT(p.paid_at, "%Y-%m") = ?');
+    WHERE c.owed_to_business_id = ? AND to_char(p.paid_at, \'YYYY-MM\') = ?');
 $stmt->execute([$business_id, $month]);
 $received = (float)$stmt->fetch()['received'];
 
@@ -51,8 +51,8 @@ $payable = max(0, $owed - $paid_out);
 $net_position = $receivable - $payable;
 
 $stmt = $pdo->prepare('SELECT b.name AS partner_name,
-        IFNULL(SUM(CASE WHEN c.owed_to_business_id = ? THEN GREATEST(c.amount - IFNULL(paid.amount_paid, 0), 0) ELSE 0 END),0) AS receivable,
-        IFNULL(SUM(CASE WHEN c.target_business_id = ? THEN GREATEST(c.amount - IFNULL(paid.amount_paid, 0), 0) ELSE 0 END),0) AS payable
+        COALESCE(SUM(CASE WHEN c.owed_to_business_id = ? THEN GREATEST(c.amount - COALESCE(paid.amount_paid, 0), 0) ELSE 0 END),0) AS receivable,
+        COALESCE(SUM(CASE WHEN c.target_business_id = ? THEN GREATEST(c.amount - COALESCE(paid.amount_paid, 0), 0) ELSE 0 END),0) AS payable
     FROM commissions c
     LEFT JOIN (
         SELECT commission_id, SUM(amount) AS amount_paid

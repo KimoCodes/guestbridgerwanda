@@ -85,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $stmt = $pdo->prepare('SELECT p.*, b.name AS partner_name, b.business_type 
     FROM partnerships p 
     JOIN businesses b ON b.id = p.partner_business_id 
-    WHERE p.business_id = ? AND p.status = "active"
+    WHERE p.business_id = ? AND p.status = \'active\'
     ORDER BY b.name');
 $stmt->execute([$business_id]);
 $partnerships = $stmt->fetchAll();

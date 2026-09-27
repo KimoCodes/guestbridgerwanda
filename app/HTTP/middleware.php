@@ -124,7 +124,7 @@ function update_business_setting(int $business_id, string $key, $value): void {
         return;
     }
 
-    $stmt = $pdo->prepare("UPDATE businesses SET `$key`=? WHERE id=?");
+    $stmt = $pdo->prepare("UPDATE businesses SET \"$key\"=? WHERE id=?");
     $stmt->execute([$value, $business_id]);
 }
 }
@@ -190,7 +190,7 @@ function save_user_meta(int $user_id, string $key, string $value): void {
     $stmt = $pdo->prepare("
         INSERT INTO user_meta (user_id, meta_key, meta_value)
         VALUES (?, ?, ?)
-        ON DUPLICATE KEY UPDATE meta_value = VALUES(meta_value)
+        ON CONFLICT (user_id, meta_key) DO UPDATE SET meta_value = EXCLUDED.meta_value
     ");
 
     $stmt->execute([$user_id, $key, $value]);
@@ -328,7 +328,7 @@ function save_notification_preferences(int $user_id, array $prefs): void {
             INSERT INTO notification_preferences
             (user_id, pref_key, pref_value)
             VALUES (?, ?, ?)
-            ON DUPLICATE KEY UPDATE pref_value = VALUES(pref_value)
+            ON CONFLICT (user_id, pref_key) DO UPDATE SET pref_value = EXCLUDED.pref_value
         ");
 
         $stmt->execute([$user_id, $k, (int)$v]);
@@ -461,7 +461,7 @@ function save_system_preference(int $user_id, string $key, string $value): void 
     $pdo = db_connect();
     $stmt = $pdo->prepare('INSERT INTO user_preferences (user_id, pref_key, pref_value)
         VALUES (?, ?, ?)
-        ON DUPLICATE KEY UPDATE pref_value = VALUES(pref_value)');
+        ON CONFLICT (user_id, pref_key) DO UPDATE SET pref_value = EXCLUDED.pref_value');
     $stmt->execute([$user_id, $key, $value]);
 }
 }

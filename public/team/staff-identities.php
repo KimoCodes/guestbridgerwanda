@@ -77,7 +77,7 @@ $inactive_identities = $identityService->getBusinessIdentities($business_id, 'in
 // Get staff without active identities (for creation form)
 $stmt = $pdo->prepare('SELECT s.id, s.name, s.role FROM staff s 
     WHERE s.business_id = ? 
-    AND s.id NOT IN (SELECT staff_id FROM staff_referral_identities WHERE business_id = ? AND status = "active")
+    AND s.id NOT IN (SELECT staff_id FROM staff_referral_identities WHERE business_id = ? AND status = \'active\')
     ORDER BY s.name');
 $stmt->execute([$business_id, $business_id]);
 $available_staff = $stmt->fetchAll();

@@ -30,43 +30,43 @@ if ($action === 'generate' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $month = $statement_month;
         
         // Referral value generated
-        $stmt = $pdo->prepare('SELECT IFNULL(SUM(COALESCE(r.transaction_amount, c.estimated_value)), 0) FROM commissions c JOIN referrals r ON c.referral_id = r.id WHERE c.source_business_id = ? AND c.month = ?');
+        $stmt = $pdo->prepare('SELECT COALESCE(SUM(COALESCE(r.transaction_amount, c.estimated_value)), 0) FROM commissions c JOIN referrals r ON c.referral_id = r.id WHERE c.source_business_id = ? AND c.month = ?');
         $stmt->execute([$business_id, $month]);
         $referral_value = (float) $stmt->fetchColumn();
         
         // Commission earned
-        $stmt = $pdo->prepare('SELECT IFNULL(SUM(c.amount), 0) FROM commissions c WHERE c.source_business_id = ? AND c.month = ?');
+        $stmt = $pdo->prepare('SELECT COALESCE(SUM(c.amount), 0) FROM commissions c WHERE c.source_business_id = ? AND c.month = ?');
         $stmt->execute([$business_id, $month]);
         $commission_earned = (float) $stmt->fetchColumn();
         
         // Commission payable
-        $stmt = $pdo->prepare('SELECT IFNULL(SUM(c.amount), 0) FROM commissions c WHERE c.target_business_id = ? AND c.month = ?');
+        $stmt = $pdo->prepare('SELECT COALESCE(SUM(c.amount), 0) FROM commissions c WHERE c.target_business_id = ? AND c.month = ?');
         $stmt->execute([$business_id, $month]);
         $commission_payable = (float) $stmt->fetchColumn();
         
         // Employee commissions
-        $stmt = $pdo->prepare('SELECT IFNULL(SUM(ca.amount), 0) FROM commission_allocations ca 
+        $stmt = $pdo->prepare('SELECT COALESCE(SUM(ca.amount), 0) FROM commission_allocations ca 
             JOIN commissions c ON c.id = ca.commission_id 
-            WHERE ca.allocation_type = "employee" AND c.source_business_id = ? AND c.month = ?');
+            WHERE ca.allocation_type = \'employee\' AND c.source_business_id = ? AND c.month = ?');
         $stmt->execute([$business_id, $month]);
         $employee_commission = (float) $stmt->fetchColumn();
         
         // Platform fee
-        $stmt = $pdo->prepare('SELECT IFNULL(SUM(ca.amount), 0) FROM commission_allocations ca 
+        $stmt = $pdo->prepare('SELECT COALESCE(SUM(ca.amount), 0) FROM commission_allocations ca 
             JOIN commissions c ON c.id = ca.commission_id 
-            WHERE ca.allocation_type = "platform" AND c.source_business_id = ? AND c.month = ?');
+            WHERE ca.allocation_type = \'platform\' AND c.source_business_id = ? AND c.month = ?');
         $stmt->execute([$business_id, $month]);
         $platform_fee = (float) $stmt->fetchColumn();
         
         // Payments made
-        $stmt = $pdo->prepare('SELECT IFNULL(SUM(s.amount), 0) FROM settlements s 
-            WHERE s.from_business_id = ? AND DATE_FORMAT(s.created_at, "%Y-%m") = ? AND s.status = "verified"');
+        $stmt = $pdo->prepare('SELECT COALESCE(SUM(s.amount), 0) FROM settlements s 
+            WHERE s.from_business_id = ? AND to_char(s.created_at, \'YYYY-MM\') = ? AND s.status = \'verified\'');
         $stmt->execute([$business_id, $month]);
         $payments_made = (float) $stmt->fetchColumn();
         
         // Payments received
-        $stmt = $pdo->prepare('SELECT IFNULL(SUM(s.amount), 0) FROM settlements s 
-            WHERE s.to_business_id = ? AND DATE_FORMAT(s.created_at, "%Y-%m") = ? AND s.status = "verified"');
+        $stmt = $pdo->prepare('SELECT COALESCE(SUM(s.amount), 0) FROM settlements s 
+            WHERE s.to_business_id = ? AND to_char(s.created_at, \'YYYY-MM\') = ? AND s.status = \'verified\'');
         $stmt->execute([$business_id, $month]);
         $payments_received = (float) $stmt->fetchColumn();
         
@@ -85,16 +85,16 @@ if ($action === 'generate' && $_SERVER['REQUEST_METHOD'] === 'POST') {
              commission_payable, employee_commission, platform_fee, payments_made, payments_received, 
              closing_balance, status, generated_at) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-            ON DUPLICATE KEY UPDATE
-                referral_value_generated = VALUES(referral_value_generated),
-                commission_earned = VALUES(commission_earned),
-                commission_payable = VALUES(commission_payable),
-                employee_commission = VALUES(employee_commission),
-                platform_fee = VALUES(platform_fee),
-                payments_made = VALUES(payments_made),
-                payments_received = VALUES(payments_received),
-                closing_balance = VALUES(closing_balance),
-                status = "final",
+            ON CONFLICT (business_id, statement_month) DO UPDATE SET
+                referral_value_generated = EXCLUDED.referral_value_generated,
+                commission_earned = EXCLUDED.commission_earned,
+                commission_payable = EXCLUDED.commission_payable,
+                employee_commission = EXCLUDED.employee_commission,
+                platform_fee = EXCLUDED.platform_fee,
+                payments_made = EXCLUDED.payments_made,
+                payments_received = EXCLUDED.payments_received,
+                closing_balance = EXCLUDED.closing_balance,
+                status = \'final\',
                 generated_at = NOW()');
         $stmt->execute([
             $business_id, $month, $opening_balance, $referral_value, $commission_earned,

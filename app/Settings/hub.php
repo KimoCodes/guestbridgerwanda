@@ -50,7 +50,7 @@ function settings_financial_summary(PDO $pdo, int $business_id): array
     $pending->execute([$business_id, 'pending']);
     $pending_earned = (float) $pending->fetchColumn();
 
-    $confirmed = $pdo->prepare('SELECT COALESCE(SUM(amount),0) FROM commissions WHERE owed_to_business_id = ? AND status IN ("confirmed","reconciled")');
+    $confirmed = $pdo->prepare('SELECT COALESCE(SUM(amount),0) FROM commissions WHERE owed_to_business_id = ? AND status IN (\'confirmed\',\'reconciled\')');
     $confirmed->execute([$business_id]);
     $total_confirmed = (float) $confirmed->fetchColumn();
 
@@ -274,7 +274,7 @@ function settings_handle_post(PDO $pdo, array $user, string $tab, array &$errors
         foreach (['terms', 'privacy', 'marketing'] as $ctype) {
             $granted = !empty($_POST['consent_' . $ctype]) ? 1 : 0;
             $pdo->prepare('INSERT INTO consents (user_id, consent_type, granted, granted_at) VALUES (?, ?, ?, NOW())
-                ON DUPLICATE KEY UPDATE granted = VALUES(granted), granted_at = NOW()')->execute([$user_id, $ctype, $granted]);
+                ON CONFLICT (user_id, consent_type) DO UPDATE SET granted = EXCLUDED.granted, granted_at = NOW()')->execute([$user_id, $ctype, $granted]);
         }
         log_audit($pdo, $business_id, $user_id, 'privacy_updated', 'business', $business_id);
         $flash = 'Privacy settings saved.';

@@ -70,11 +70,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare('INSERT INTO settlement_signoffs
                 (business_id, partner_business_id, billing_month, status, note, signed_by_user_id, signed_at)
             VALUES (?, ?, ?, ?, ?, ?, ' . $signed_at_sql . ')
-            ON DUPLICATE KEY UPDATE
-                status = VALUES(status),
-                note = VALUES(note),
-                signed_by_user_id = VALUES(signed_by_user_id),
-                signed_at = VALUES(signed_at)');
+            ON CONFLICT (business_id, partner_business_id, billing_month) DO UPDATE SET
+                status = EXCLUDED.status,
+                note = EXCLUDED.note,
+                signed_by_user_id = EXCLUDED.signed_by_user_id,
+                signed_at = EXCLUDED.signed_at');
         $stmt->execute([$business_id, $partner_id, $month, $status, $note !== '' ? $note : null, $signed_by]);
         flash_set('Partner sign-off notes saved.');
         header('Location: /guestbridgerwanda/settlement_summary.php?month=' . urlencode($month) . '&partner_id=' . intval($partner_id));
@@ -103,11 +103,11 @@ $sql = 'SELECT
         partner.id AS partner_id,
         partner.name AS partner_name,
         COUNT(c.id) AS commission_count,
-        IFNULL(SUM(CASE WHEN c.owed_to_business_id = ? THEN c.amount ELSE 0 END),0) AS receivable_total,
-        IFNULL(SUM(CASE WHEN c.target_business_id = ? THEN c.amount ELSE 0 END),0) AS payable_total,
-        IFNULL(SUM(CASE WHEN c.status = "pending" THEN c.amount ELSE 0 END),0) AS pending_total,
-        IFNULL(SUM(CASE WHEN c.status = "confirmed" THEN c.amount ELSE 0 END),0) AS confirmed_total,
-        IFNULL(SUM(CASE WHEN c.status = "reconciled" THEN c.amount ELSE 0 END),0) AS reconciled_total
+        COALESCE(SUM(CASE WHEN c.owed_to_business_id = ? THEN c.amount ELSE 0 END),0) AS receivable_total,
+        COALESCE(SUM(CASE WHEN c.target_business_id = ? THEN c.amount ELSE 0 END),0) AS payable_total,
+        COALESCE(SUM(CASE WHEN c.status = \'pending\' THEN c.amount ELSE 0 END),0) AS pending_total,
+        COALESCE(SUM(CASE WHEN c.status = \'confirmed\' THEN c.amount ELSE 0 END),0) AS confirmed_total,
+        COALESCE(SUM(CASE WHEN c.status = \'reconciled\' THEN c.amount ELSE 0 END),0) AS reconciled_total
     FROM commissions c
     JOIN businesses partner ON partner.id = CASE WHEN c.owed_to_business_id = ? THEN c.target_business_id ELSE c.owed_to_business_id END
     ' . $where . '
@@ -135,9 +135,9 @@ foreach ($stmt->fetchAll() as $row) {
 
 $payment_sql = 'SELECT
         c.target_business_id AS partner_id,
-        IFNULL(SUM(p.amount),0) AS paid_total,
-        IFNULL(SUM(CASE WHEN p.status = "verified" THEN p.amount ELSE 0 END),0) AS verified_total,
-        IFNULL(SUM(CASE WHEN p.status = "disputed" THEN p.amount ELSE 0 END),0) AS disputed_total
+        COALESCE(SUM(p.amount),0) AS paid_total,
+        COALESCE(SUM(CASE WHEN p.status = \'verified\' THEN p.amount ELSE 0 END),0) AS verified_total,
+        COALESCE(SUM(CASE WHEN p.status = \'disputed\' THEN p.amount ELSE 0 END),0) AS disputed_total
     FROM payments p
     JOIN commissions c ON c.id = p.commission_id
     WHERE c.owed_to_business_id = ? AND c.month = ?';

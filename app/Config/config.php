@@ -71,10 +71,7 @@ function gb_send_security_headers(): void
 
 gb_send_security_headers();
 
-define('DB_HOST', getenv('GB_DB_HOST') ?: 'localhost');
-define('DB_NAME', getenv('GB_DB_NAME') ?: 'guestbridgerwanda');
-define('DB_USER', getenv('GB_DB_USER') ?: 'root');
-define('DB_PASS', getenv('GB_DB_PASS') ?: '');
+define('DB_URL_FILE', __DIR__ . '/db.url');
 
 
 define('APP_NAME', 'GuestBridge Rwanda');
@@ -192,27 +189,67 @@ function gb_render_stylesheets(): void
 function gb_render_app_scripts(): string
 {
     $base = rtrim(BASE_URL, '/');
-    return '<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>'
-        . '<script src="' . $base . '/assets/app.js?v=20260522"></script>';
+    return '<script>window.GB_BASE = ' . json_encode($base, JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES) . ';</script>'
+        . '<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>'
+        . '<script src="' . $base . '/assets/app.js?v=20260926"></script>';
 }
 
-function db_connect()
+function gb_database_url(): string
+{
+    $url = getenv('GB_DB_URL');
+    if (is_string($url) && trim($url) !== '') {
+        return trim($url);
+    }
+    if (is_file(DB_URL_FILE)) {
+        $contents = trim((string) file_get_contents(DB_URL_FILE));
+        if ($contents !== '') {
+            return $contents;
+        }
+    }
+    throw new RuntimeException('No database URL configured. Set GB_DB_URL or create app/Config/db.url.');
+}
+
+function gb_pg_dsn(string $url): array
+{
+    $parts = parse_url($url);
+    if ($parts === false || !isset($parts['host'], $parts['path'], $parts['user'])) {
+        throw new RuntimeException('Invalid database URL.');
+    }
+    $dsn = 'pgsql:host=' . $parts['host']
+        . ';port=' . ($parts['port'] ?? 5432)
+        . ';dbname=' . ltrim($parts['path'], '/');
+    parse_str($parts['query'] ?? '', $options);
+    // When PHP runs under Apache (user `daemon`, HOME=/var/root) libpq tries to
+    // load the default client certificate $HOME/.postgresql/postgresql.crt, which
+    // is unreadable and aborts the TLS handshake. Point sslcert at a path that
+    // simply does not exist so no client certificate is loaded.
+    $options += ['sslcert' => '/nonexistent/gb_client.crt'];
+    foreach ($options as $key => $value) {
+        $dsn .= ';' . $key . '=' . $value;
+    }
+    return [$dsn, $parts['user'], $parts['pass'] ?? ''];
+}
+
+function db_connect(bool $fresh = false)
 {
     static $pdo;
+    if ($fresh) {
+        $pdo = null;
+    }
     if ($pdo) {
         return $pdo;
     }
 
-    $dsn = 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=utf8mb4';
-    $options = [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_EMULATE_PREPARES => false,
-    ];
-
     try {
-        $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
-    } catch (PDOException $e) {
+        [$dsn, $user, $pass] = gb_pg_dsn(gb_database_url());
+        $options = [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_STRINGIFY_FETCHES => true,
+            PDO::ATTR_TIMEOUT => 10,
+        ];
+        $pdo = new PDO($dsn, $user, $pass, $options);
+    } catch (Throwable $e) {
         $is_local = in_array($_SERVER['HTTP_HOST'] ?? '', ['localhost', '127.0.0.1'], true)
             || strpos((string)($_SERVER['HTTP_HOST'] ?? ''), 'localhost:') === 0;
         if ($is_local) {
@@ -609,8 +646,8 @@ function get_platform_config(string $key, $default = null)
             $pdo->exec("CREATE TABLE IF NOT EXISTS platform_config (
                 config_key VARCHAR(100) PRIMARY KEY,
                 config_value TEXT NOT NULL,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );");
             $rows = $pdo->query('SELECT config_key, config_value FROM platform_config')->fetchAll(PDO::FETCH_KEY_PAIR);
             $config_cache = $rows ?: [];
         } catch (Exception $e) {

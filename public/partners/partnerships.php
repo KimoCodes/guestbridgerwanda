@@ -60,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors[] = 'A partnership request already exists with that business.';
             } else {
                 if ($template_id > 0 && $raw_agreement === '') {
-                    $stmt = $pdo->prepare('SELECT * FROM contract_templates WHERE id = ? AND status = "active"');
+                    $stmt = $pdo->prepare('SELECT * FROM contract_templates WHERE id = ? AND status = \'active\'');
                     $stmt->execute([$template_id]);
                     $template = $stmt->fetch();
                     if ($template) {
@@ -132,7 +132,7 @@ if ($city_filter !== '') {
     $available_sql .= ' AND b.city = ?';
     $params[] = $city_filter;
 }
-$available_sql .= ' ORDER BY (fl.status = "active") DESC, b.name';
+$available_sql .= ' ORDER BY (fl.status = \'active\') DESC, b.name';
 $stmt = $pdo->prepare($available_sql);
 $stmt->execute($params);
 $available_businesses = $stmt->fetchAll();

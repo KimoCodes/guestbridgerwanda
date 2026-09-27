@@ -125,7 +125,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
         FROM featured_listings fl
         JOIN businesses b ON b.id = fl.business_id
         WHERE fl.featured_month = ?
-        ORDER BY (fl.status = "active") DESC, b.name');
+        ORDER BY (fl.status = \'active\') DESC, b.name');
     $stmt->execute([$month]);
     foreach ($stmt->fetchAll() as $row) {
         fputcsv($output, ['Featured listing', $row['business_name'], 'Placement', featured_listing_status_label($row['status']), $row['note']]);
@@ -159,14 +159,14 @@ $stmt->execute([$month]);
 $platform_rows = $stmt->fetchAll();
 
 $stmt = $pdo->prepare('SELECT
-        IFNULL(SUM(total_amount),0) AS total_amount,
-        IFNULL(SUM(subscription_fee),0) AS subscription_fee,
-        IFNULL(SUM(referral_fee),0) AS referral_fee,
-        IFNULL(SUM(analytics_fee),0) AS analytics_fee,
-        IFNULL(SUM(featured_fee),0) AS featured_fee,
-        SUM(status = "approved") AS approved_count,
-        SUM(status = "waived") AS waived_count,
-        SUM(status = "simulated") AS simulated_count
+        COALESCE(SUM(total_amount),0) AS total_amount,
+        COALESCE(SUM(subscription_fee),0) AS subscription_fee,
+        COALESCE(SUM(referral_fee),0) AS referral_fee,
+        COALESCE(SUM(analytics_fee),0) AS analytics_fee,
+        COALESCE(SUM(featured_fee),0) AS featured_fee,
+        SUM(CASE WHEN status = \'approved\' THEN 1 ELSE 0 END) AS approved_count,
+        SUM(CASE WHEN status = \'waived\' THEN 1 ELSE 0 END) AS waived_count,
+        SUM(CASE WHEN status = \'simulated\' THEN 1 ELSE 0 END) AS simulated_count
     FROM platform_fees
     WHERE billing_month = ?');
 $stmt->execute([$month]);
@@ -177,7 +177,7 @@ $stmt = $pdo->prepare('SELECT fl.*, b.name AS business_name, b.business_type, u.
     JOIN businesses b ON b.id = fl.business_id
     LEFT JOIN users u ON u.id = fl.created_by_user_id
     WHERE fl.featured_month = ?
-    ORDER BY (fl.status = "active") DESC, b.name');
+    ORDER BY (fl.status = \'active\') DESC, b.name');
 $stmt->execute([$month]);
 $featured_rows = $stmt->fetchAll();
 
@@ -198,12 +198,12 @@ $stmt->execute([$month]);
 $settlement_rows = $stmt->fetchAll();
 
 $stmt = $pdo->prepare('SELECT
-        IFNULL(SUM(total_amount),0) AS total_amount,
-        IFNULL(SUM(paid_amount),0) AS paid_amount,
-        IFNULL(SUM(remaining_amount),0) AS remaining_amount,
-        SUM(status = "overdue") AS overdue_count,
-        SUM(status = "partial") AS partial_count,
-        SUM(status = "paid") AS paid_count
+        COALESCE(SUM(total_amount),0) AS total_amount,
+        COALESCE(SUM(paid_amount),0) AS paid_amount,
+        COALESCE(SUM(remaining_amount),0) AS remaining_amount,
+        SUM(CASE WHEN status = \'overdue\' THEN 1 ELSE 0 END) AS overdue_count,
+        SUM(CASE WHEN status = \'partial\' THEN 1 ELSE 0 END) AS partial_count,
+        SUM(CASE WHEN status = \'paid\' THEN 1 ELSE 0 END) AS paid_count
     FROM hotel_debts
     WHERE billing_month = ?');
 $stmt->execute([$month]);
@@ -214,12 +214,12 @@ $stmt = $pdo->prepare('SELECT b.id, b.name, b.business_type,
         source.name AS source_business_name,
         p.commission_rate,
         COUNT(r.id) AS referrals_count,
-        COUNT(DISTINCT DATE_FORMAT(r.created_at, "%Y-%m")) AS active_months
+        COUNT(DISTINCT to_char(r.created_at, \'YYYY-MM\')) AS active_months
     FROM partnerships p
     JOIN businesses b ON b.id = p.partner_business_id
     JOIN businesses source ON source.id = p.business_id
     LEFT JOIN referrals r ON r.source_business_id = p.business_id AND r.target_business_id = p.partner_business_id
-    WHERE p.status = "active"
+    WHERE p.status = \'active\'
     GROUP BY b.id, b.name, b.business_type, p.business_id, source.name, p.commission_rate
     ORDER BY referrals_count DESC, source.name, b.name
     LIMIT 12');

@@ -210,12 +210,12 @@ class ReferralService
 
             // If converted, ensure commission is confirmed
             if ($new_status === 'converted') {
-                $this->pdo->prepare('UPDATE commissions SET status = "confirmed" WHERE referral_id = ? AND status = "pending"')->execute([$referral_id]);
+                $this->pdo->prepare('UPDATE commissions SET status = \'confirmed\' WHERE referral_id = ? AND status = \'pending\'')->execute([$referral_id]);
             }
 
             // If settled, mark commission as settled
             if ($new_status === 'settled') {
-                $this->pdo->prepare('UPDATE commissions SET status = "settled", settled_at = NOW() WHERE referral_id = ? AND status IN ("confirmed","reconciled")')->execute([$referral_id]);
+                $this->pdo->prepare('UPDATE commissions SET status = \'settled\', settled_at = NOW() WHERE referral_id = ? AND status IN (\'confirmed\',\'reconciled\')')->execute([$referral_id]);
             }
 
             $this->pdo->commit();
@@ -572,7 +572,7 @@ class ReferralService
         $actions = [];
 
         // Referrals awaiting acceptance (incoming)
-        $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM referrals WHERE target_business_id = ? AND status = "created"');
+        $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM referrals WHERE target_business_id = ? AND status = \'created\'');
         $stmt->execute([$business_id]);
         $count = (int) $stmt->fetchColumn();
         if ($count > 0) {
@@ -586,7 +586,7 @@ class ReferralService
         }
 
         // Referrals awaiting visit confirmation
-        $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM referrals WHERE target_business_id = ? AND status = "accepted"');
+        $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM referrals WHERE target_business_id = ? AND status = \'accepted\'');
         $stmt->execute([$business_id]);
         $count = (int) $stmt->fetchColumn();
         if ($count > 0) {
@@ -600,7 +600,7 @@ class ReferralService
         }
 
         // Referrals awaiting transaction recording
-        $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM referrals WHERE target_business_id = ? AND status = "visited"');
+        $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM referrals WHERE target_business_id = ? AND status = \'visited\'');
         $stmt->execute([$business_id]);
         $count = (int) $stmt->fetchColumn();
         if ($count > 0) {
@@ -615,7 +615,7 @@ class ReferralService
 
         // Pending settlements
         try {
-            $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM settlements WHERE from_business_id = ? AND status IN ("pending","submitted")');
+            $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM settlements WHERE from_business_id = ? AND status IN (\'pending\',\'submitted\')');
             $stmt->execute([$business_id]);
             $count = (int) $stmt->fetchColumn();
             if ($count > 0) {
@@ -632,7 +632,7 @@ class ReferralService
         }
 
         // Pending partnership requests (incoming)
-        $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM partnerships WHERE partner_business_id = ? AND status = "pending"');
+        $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM partnerships WHERE partner_business_id = ? AND status = \'pending\'');
         $stmt->execute([$business_id]);
         $count = (int) $stmt->fetchColumn();
         if ($count > 0) {
@@ -647,7 +647,7 @@ class ReferralService
 
         // Open disputes
         try {
-            $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM disputes WHERE business_id = ? AND status IN ("open","under_review")');
+            $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM disputes WHERE business_id = ? AND status IN (\'open\',\'under_review\')');
             $stmt->execute([$business_id]);
             $count = (int) $stmt->fetchColumn();
             if ($count > 0) {
@@ -675,7 +675,7 @@ class ReferralService
      */
     public function expireStaleReferrals(): int
     {
-        $stmt = $this->pdo->prepare('UPDATE referrals SET status = "expired" WHERE status = "created" AND expires_at IS NOT NULL AND expires_at < NOW()');
+        $stmt = $this->pdo->prepare('UPDATE referrals SET status = \'expired\' WHERE status = \'created\' AND expires_at IS NOT NULL AND expires_at < NOW()');
         $stmt->execute([]);
         return $stmt->rowCount();
     }
@@ -711,7 +711,7 @@ class ReferralService
     private function createNotification(int $business_id, string $type, string $title, string $message, ?string $entity_type = null, ?int $entity_id = null): void
     {
         // Get manager user for this business
-        $stmt = $this->pdo->prepare('SELECT id FROM users WHERE business_id = ? AND role IN ("manager","super_admin") ORDER BY id ASC LIMIT 1');
+        $stmt = $this->pdo->prepare('SELECT id FROM users WHERE business_id = ? AND role IN (\'manager\',\'super_admin\') ORDER BY id ASC LIMIT 1');
         $stmt->execute([$business_id]);
         $user = $stmt->fetch();
         if (!$user) return;

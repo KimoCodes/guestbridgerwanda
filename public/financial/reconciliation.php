@@ -29,9 +29,9 @@ $partner_options = $partner_stmt->fetchAll();
 if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     $sql = 'SELECT b.name AS partner_name,
         COUNT(c.id) AS referral_count,
-        SUM(CASE WHEN c.status = "pending" THEN c.amount ELSE 0 END) AS pending_amount,
-        SUM(CASE WHEN c.status = "confirmed" THEN c.amount ELSE 0 END) AS confirmed_amount,
-        SUM(CASE WHEN c.status = "reconciled" THEN c.amount ELSE 0 END) AS reconciled_amount
+        SUM(CASE WHEN c.status = \'pending\' THEN c.amount ELSE 0 END) AS pending_amount,
+        SUM(CASE WHEN c.status = \'confirmed\' THEN c.amount ELSE 0 END) AS confirmed_amount,
+        SUM(CASE WHEN c.status = \'reconciled\' THEN c.amount ELSE 0 END) AS reconciled_amount
         FROM commissions c
         JOIN businesses b ON c.source_business_id = b.id
         WHERE c.owed_to_business_id = ? AND c.month = ?';
@@ -71,9 +71,9 @@ if ($month !== '' && !preg_match('/^\d{4}-\d{2}$/', $month)) {
 $sql = 'SELECT b.id AS partner_id, b.name AS partner_name,
     COUNT(c.id) AS referral_count,
     SUM(c.amount) AS total_amount,
-    SUM(CASE WHEN c.status = "pending" THEN c.amount ELSE 0 END) AS pending_amount,
-    SUM(CASE WHEN c.status = "confirmed" THEN c.amount ELSE 0 END) AS confirmed_amount,
-    SUM(CASE WHEN c.status = "reconciled" THEN c.amount ELSE 0 END) AS reconciled_amount
+    SUM(CASE WHEN c.status = \'pending\' THEN c.amount ELSE 0 END) AS pending_amount,
+    SUM(CASE WHEN c.status = \'confirmed\' THEN c.amount ELSE 0 END) AS confirmed_amount,
+    SUM(CASE WHEN c.status = \'reconciled\' THEN c.amount ELSE 0 END) AS reconciled_amount
     FROM commissions c
     JOIN businesses b ON c.source_business_id = b.id
     WHERE c.owed_to_business_id = ? AND c.month = ?';
@@ -89,7 +89,7 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $partner_rows = $stmt->fetchAll();
 
-$sql = 'SELECT IFNULL(SUM(amount),0) AS pending_total FROM commissions WHERE owed_to_business_id = ? AND status = ? AND month = ?';
+$sql = 'SELECT COALESCE(SUM(amount),0) AS pending_total FROM commissions WHERE owed_to_business_id = ? AND status = ? AND month = ?';
 $params = [$business_id, 'pending', $month];
 if ($partner_id > 0) {
     $sql .= ' AND source_business_id = ?';
@@ -99,7 +99,7 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $pending_total = $stmt->fetch()['pending_total'];
 
-$sql = 'SELECT IFNULL(SUM(amount),0) AS confirmed_total FROM commissions WHERE owed_to_business_id = ? AND status = ? AND month = ?';
+$sql = 'SELECT COALESCE(SUM(amount),0) AS confirmed_total FROM commissions WHERE owed_to_business_id = ? AND status = ? AND month = ?';
 $params = [$business_id, 'confirmed', $month];
 if ($partner_id > 0) {
     $sql .= ' AND source_business_id = ?';
@@ -109,7 +109,7 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $confirmed_total = $stmt->fetch()['confirmed_total'];
 
-$sql = 'SELECT IFNULL(SUM(amount),0) AS reconciled_total FROM commissions WHERE owed_to_business_id = ? AND status = ? AND month = ?';
+$sql = 'SELECT COALESCE(SUM(amount),0) AS reconciled_total FROM commissions WHERE owed_to_business_id = ? AND status = ? AND month = ?';
 $params = [$business_id, 'reconciled', $month];
 if ($partner_id > 0) {
     $sql .= ' AND source_business_id = ?';

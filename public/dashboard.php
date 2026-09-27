@@ -30,12 +30,12 @@ $stmt = $pdo->prepare('SELECT p.id, b.name AS requester_name, p.commission_rate,
 $stmt->execute([$business_id, 'pending']);
 $latest_requests = $stmt->fetchAll();
 
-$stmt = $pdo->prepare('SELECT IFNULL(SUM(amount),0) AS pending FROM commissions WHERE owed_to_business_id = ? AND status = ?');
+$stmt = $pdo->prepare('SELECT COALESCE(SUM(amount),0) AS pending FROM commissions WHERE owed_to_business_id = ? AND status = ?');
 $stmt->execute([$business_id, 'pending']);
 $pending_commission = $stmt->fetch()['pending'];
 
 $current_month = date('Y-m');
-$stmt = $pdo->prepare('SELECT IFNULL(SUM(amount),0) AS month_total FROM commissions WHERE owed_to_business_id = ? AND month = ?');
+$stmt = $pdo->prepare('SELECT COALESCE(SUM(amount),0) AS month_total FROM commissions WHERE owed_to_business_id = ? AND month = ?');
 $stmt->execute([$business_id, $current_month]);
 $month_total = $stmt->fetch()['month_total'];
 
@@ -72,14 +72,14 @@ $partner_query = $pdo->prepare('SELECT b.id, b.name, b.business_type, b.city, b.
 $partner_query->execute([$business_id, $business_id, $business_id, 'active']);
 $partner_list = $partner_query->fetchAll();
 
-$stmt = $pdo->prepare('SELECT COUNT(*) AS c, SUM(status = "used") AS used FROM referrals WHERE source_business_id = ? OR target_business_id = ?');
+$stmt = $pdo->prepare('SELECT COUNT(*) AS c, SUM(CASE WHEN status = \'used\' THEN 1 ELSE 0 END) AS used FROM referrals WHERE source_business_id = ? OR target_business_id = ?');
 $stmt->execute([$business_id, $business_id]);
 $ref_all = $stmt->fetch();
 $total_all_referrals = (int) ($ref_all['c'] ?? 0);
 $total_used = (int) ($ref_all['used'] ?? 0);
 $conversion_rate = $total_all_referrals > 0 ? round(($total_used / $total_all_referrals) * 100) : 0;
 
-$stmt = $pdo->prepare('SELECT COUNT(*) FROM referrals WHERE (source_business_id = ? OR target_business_id = ?) AND DATE_FORMAT(created_at, "%Y-%m") = ?');
+$stmt = $pdo->prepare('SELECT COUNT(*) FROM referrals WHERE (source_business_id = ? OR target_business_id = ?) AND to_char(created_at, \'YYYY-MM\') = ?');
 $stmt->execute([$business_id, $business_id, $current_month]);
 $month_referrals = (int) $stmt->fetchColumn();
 
@@ -94,24 +94,24 @@ try {
     $next_debt = null;
 }
 
-$stmt = $pdo->prepare('SELECT COUNT(*) FROM referrals WHERE (source_business_id = ? OR target_business_id = ?) AND DATE_FORMAT(created_at, "%Y-%m") = ? AND status = ?');
+$stmt = $pdo->prepare('SELECT COUNT(*) FROM referrals WHERE (source_business_id = ? OR target_business_id = ?) AND to_char(created_at, \'YYYY-MM\') = ? AND status = ?');
 $stmt->execute([$business_id, $business_id, $current_month, 'used']);
 $month_used = (int) $stmt->fetchColumn();
 
 $referral_change = $month_used > 0 ? $month_used . ' used' : 'No redemptions yet';
 
-$stmt = $pdo->prepare('SELECT IFNULL(SUM(amount),0) FROM commissions WHERE owed_to_business_id = ? AND month = ?');
+$stmt = $pdo->prepare('SELECT COALESCE(SUM(amount),0) FROM commissions WHERE owed_to_business_id = ? AND month = ?');
 $stmt->execute([$business_id, $current_month]);
 $month_earned = (float) $stmt->fetchColumn();
 
-$stmt = $pdo->prepare('SELECT IFNULL(SUM(amount),0) FROM commissions WHERE target_business_id = ? AND month = ?');
+$stmt = $pdo->prepare('SELECT COALESCE(SUM(amount),0) FROM commissions WHERE target_business_id = ? AND month = ?');
 $stmt->execute([$business_id, $current_month]);
 $month_owed = (float) $stmt->fetchColumn();
 
 $activity_chart = [];
 $max_activity = 1;
 $week_ago = date('Y-m-d', strtotime('-6 days'));
-$stmt = $pdo->prepare('SELECT DATE(created_at) AS day, COUNT(*) AS cnt FROM referrals WHERE (source_business_id = ? OR target_business_id = ?) AND DATE(created_at) >= ? GROUP BY DATE(created_at)');
+$stmt = $pdo->prepare('SELECT (created_at)::date AS day, COUNT(*) AS cnt FROM referrals WHERE (source_business_id = ? OR target_business_id = ?) AND (created_at)::date >= ? GROUP BY (created_at)::date');
 $stmt->execute([$business_id, $business_id, $week_ago]);
 $activity_data = [];
 foreach ($stmt->fetchAll() as $row) {

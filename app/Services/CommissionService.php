@@ -209,8 +209,8 @@ class CommissionService
                 estimated_value = ?,
                 amount = ?,
                 commission_percentage = ?,
-                status = "confirmed"
-                WHERE referral_id = ? AND status IN ("pending","confirmed")');
+                status = \'confirmed\'
+                WHERE referral_id = ? AND status IN (\'pending\',\'confirmed\')');
             $stmt->execute([
                 $eligible_amount,
                 $calculation['total_commission'],
@@ -226,7 +226,7 @@ class CommissionService
             }
 
             // Update referral status to converted
-            $stmt = $this->pdo->prepare('UPDATE referrals SET status = "converted", converted_at = NOW() WHERE id = ? AND status IN ("accepted","visited")');
+            $stmt = $this->pdo->prepare('UPDATE referrals SET status = \'converted\', converted_at = NOW() WHERE id = ? AND status IN (\'accepted\',\'visited\')');
             $stmt->execute([$referral_id]);
 
             // Log event
@@ -326,17 +326,17 @@ class CommissionService
 
         $stmt = $this->pdo->prepare('SELECT 
             COUNT(DISTINCT r.id) AS total_referrals,
-            SUM(CASE WHEN r.status IN ("converted","settled") THEN 1 ELSE 0 END) AS successful_referrals,
-            IFNULL(SUM(CASE WHEN r.status IN ("converted","settled") THEN gt.eligible_amount ELSE 0 END), 0) AS total_guest_value,
-            IFNULL(SUM(ca.amount), 0) AS total_commission,
-            IFNULL(SUM(CASE WHEN ca.status = "pending" THEN ca.amount ELSE 0 END), 0) AS pending_commission,
-            IFNULL(SUM(CASE WHEN ca.status = "settled" THEN ca.amount ELSE 0 END), 0) AS settled_commission
+            SUM(CASE WHEN r.status IN (\'converted\',\'settled\') THEN 1 ELSE 0 END) AS successful_referrals,
+            COALESCE(SUM(CASE WHEN r.status IN (\'converted\',\'settled\') THEN gt.eligible_amount ELSE 0 END), 0) AS total_guest_value,
+            COALESCE(SUM(ca.amount), 0) AS total_commission,
+            COALESCE(SUM(CASE WHEN ca.status = \'pending\' THEN ca.amount ELSE 0 END), 0) AS pending_commission,
+            COALESCE(SUM(CASE WHEN ca.status = \'settled\' THEN ca.amount ELSE 0 END), 0) AS settled_commission
             FROM referrals r
             LEFT JOIN guest_transactions gt ON gt.referral_id = r.id
             LEFT JOIN commission_allocations ca ON ca.commission_id = (
                 SELECT id FROM commissions WHERE referral_id = r.id LIMIT 1
-            ) AND ca.allocation_type = "employee" AND ca.recipient_employee_id = ?
-            WHERE r.staff_id = ? AND DATE_FORMAT(r.created_at, "%Y-%m") = ?');
+            ) AND ca.allocation_type = \'employee\' AND ca.recipient_employee_id = ?
+            WHERE r.staff_id = ? AND to_char(r.created_at, \'YYYY-MM\') = ?');
         $stmt->execute([$employee_id, $employee_id, $month]);
         return $stmt->fetch() ?: [];
     }
@@ -350,40 +350,40 @@ class CommissionService
 
         // Commission earned (as source)
         $stmt = $this->pdo->prepare('SELECT 
-            IFNULL(SUM(amount), 0) AS total_earned,
-            IFNULL(SUM(CASE WHEN status = "confirmed" THEN amount ELSE 0 END), 0) AS pending,
-            IFNULL(SUM(CASE WHEN status IN ("reconciled","settled") THEN amount ELSE 0 END), 0) AS settled
+            COALESCE(SUM(amount), 0) AS total_earned,
+            COALESCE(SUM(CASE WHEN status = \'confirmed\' THEN amount ELSE 0 END), 0) AS pending,
+            COALESCE(SUM(CASE WHEN status IN (\'reconciled\',\'settled\') THEN amount ELSE 0 END), 0) AS settled
             FROM commissions WHERE source_business_id = ? AND month = ?');
         $stmt->execute([$business_id, $month]);
         $earned = $stmt->fetch();
 
         // Commission payable (as target)
         $stmt = $this->pdo->prepare('SELECT 
-            IFNULL(SUM(amount), 0) AS total_owed,
-            IFNULL(SUM(CASE WHEN status = "confirmed" THEN amount ELSE 0 END), 0) AS pending,
-            IFNULL(SUM(CASE WHEN status IN ("reconciled","settled") THEN amount ELSE 0 END), 0) AS settled
+            COALESCE(SUM(amount), 0) AS total_owed,
+            COALESCE(SUM(CASE WHEN status = \'confirmed\' THEN amount ELSE 0 END), 0) AS pending,
+            COALESCE(SUM(CASE WHEN status IN (\'reconciled\',\'settled\') THEN amount ELSE 0 END), 0) AS settled
             FROM commissions WHERE target_business_id = ? AND month = ?');
         $stmt->execute([$business_id, $month]);
         $owed = $stmt->fetch();
 
         // Employee commissions payable
-        $stmt = $this->pdo->prepare('SELECT IFNULL(SUM(ca.amount), 0) AS total
+        $stmt = $this->pdo->prepare('SELECT COALESCE(SUM(ca.amount), 0) AS total
             FROM commission_allocations ca
             JOIN commissions c ON c.id = ca.commission_id
-            WHERE ca.allocation_type = "employee" 
+            WHERE ca.allocation_type = \'employee\' 
             AND c.source_business_id = ?
-            AND DATE_FORMAT(c.created_at, "%Y-%m") = ?
-            AND ca.status = "pending"');
+            AND to_char(c.created_at, \'YYYY-MM\') = ?
+            AND ca.status = \'pending\'');
         $stmt->execute([$business_id, $month]);
         $employee_commissions = (float) $stmt->fetchColumn();
 
         // GuestBridge platform share
-        $stmt = $this->pdo->prepare('SELECT IFNULL(SUM(ca.amount), 0) AS total
+        $stmt = $this->pdo->prepare('SELECT COALESCE(SUM(ca.amount), 0) AS total
             FROM commission_allocations ca
             JOIN commissions c ON c.id = ca.commission_id
-            WHERE ca.allocation_type = "platform" 
+            WHERE ca.allocation_type = \'platform\' 
             AND c.source_business_id = ?
-            AND DATE_FORMAT(c.created_at, "%Y-%m") = ?');
+            AND to_char(c.created_at, \'YYYY-MM\') = ?');
         $stmt->execute([$business_id, $month]);
         $platform_share = (float) $stmt->fetchColumn();
 
@@ -404,9 +404,9 @@ class CommissionService
     private function getActiveCommissionRule(int $partnership_id): ?array
     {
         $stmt = $this->pdo->prepare('SELECT * FROM commission_rules 
-            WHERE partnership_id = ? AND status = "active"
-            AND (effective_start_date IS NULL OR effective_start_date <= CURDATE())
-            AND (effective_end_date IS NULL OR effective_end_date >= CURDATE())
+            WHERE partnership_id = ? AND status = \'active\'
+            AND (effective_start_date IS NULL OR effective_start_date <= CURRENT_DATE)
+            AND (effective_end_date IS NULL OR effective_end_date >= CURRENT_DATE)
             ORDER BY created_at DESC LIMIT 1');
         $stmt->execute([$partnership_id]);
         return $stmt->fetch() ?: null;
@@ -416,7 +416,7 @@ class CommissionService
     {
         $stmt = $this->pdo->prepare('SELECT r.*, p.id AS partnership_id, p.commission_rate AS partnership_rate
             FROM referrals r
-            LEFT JOIN partnerships p ON p.business_id = r.source_business_id AND p.partner_business_id = r.target_business_id AND p.status = "active"
+            LEFT JOIN partnerships p ON p.business_id = r.source_business_id AND p.partner_business_id = r.target_business_id AND p.status = \'active\'
             WHERE r.id = ?');
         $stmt->execute([$referral_id]);
         return $stmt->fetch() ?: null;

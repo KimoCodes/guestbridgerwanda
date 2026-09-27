@@ -69,7 +69,7 @@ function tenant_partner_linked(PDO $pdo, int $business_id, int $other_business_i
     }
 
     $stmt = $pdo->prepare('SELECT COUNT(*) FROM partnerships
-        WHERE status IN ("active", "pending")
+        WHERE status IN (\'active\', \'pending\')
           AND ((business_id = ? AND partner_business_id = ?) OR (business_id = ? AND partner_business_id = ?))');
     $stmt->execute([$business_id, $other_business_id, $other_business_id, $business_id]);
     if ((int) $stmt->fetchColumn() > 0) {

@@ -20,7 +20,7 @@ try {
         'disputes', 'dispute_messages', 'notifications'
     ];
     
-    $stmt = $pdo->query("SHOW TABLES");
+    $stmt = $pdo->query("SELECT tablename FROM pg_tables WHERE schemaname = current_schema()");
     $existing = $stmt->fetchAll(PDO::FETCH_COLUMN);
     
     $missing = array_diff($required_tables, $existing);
@@ -31,10 +31,8 @@ try {
     }
     
     echo "Missing tables: " . implode(', ', $missing) . "\n";
-    echo "Running migration...\n\n";
-    
-    require_once __DIR__ . '/../database/migration_v2.php';
-    run_migration_v2();
+    echo "The legacy migration_v2.php installer is MySQL-only; on PostgreSQL the schema is managed by database/migrate_to_postgres.php.\n";
+    exit;
     
     echo "\nDone! Check above for details.\n";
 } catch (Exception $e) {

@@ -143,7 +143,7 @@ class StaffIdentityService
         }
 
         $stmt = $this->pdo->prepare('UPDATE staff_referral_identities 
-            SET status = "inactive", deactivated_at = NOW() 
+            SET status = \'inactive\', deactivated_at = NOW() 
             WHERE id = ? AND business_id = ?');
         $stmt->execute([$id, $businessId]);
         return $stmt->rowCount() > 0;
@@ -166,7 +166,7 @@ class StaffIdentityService
         }
 
         $stmt = $this->pdo->prepare('UPDATE staff_referral_identities 
-            SET status = "active", deactivated_at = NULL 
+            SET status = \'active\', deactivated_at = NULL 
             WHERE id = ? AND business_id = ?');
         $stmt->execute([$id, $businessId]);
         return $stmt->rowCount() > 0;
@@ -179,9 +179,9 @@ class StaffIdentityService
     {
         $stmt = $this->pdo->prepare('SELECT 
             COUNT(r.id) AS total_referrals,
-            SUM(CASE WHEN r.status IN ("converted","settled") THEN 1 ELSE 0 END) AS successful_referrals,
-            IFNULL(SUM(CASE WHEN r.status IN ("converted","settled") THEN g.gross_amount ELSE 0 END), 0) AS total_revenue,
-            IFNULL(SUM(CASE WHEN r.status IN ("converted","settled") THEN c.amount ELSE 0 END), 0) AS total_commission
+            SUM(CASE WHEN r.status IN (\'converted\',\'settled\') THEN 1 ELSE 0 END) AS successful_referrals,
+            COALESCE(SUM(CASE WHEN r.status IN (\'converted\',\'settled\') THEN g.gross_amount ELSE 0 END), 0) AS total_revenue,
+            COALESCE(SUM(CASE WHEN r.status IN (\'converted\',\'settled\') THEN c.amount ELSE 0 END), 0) AS total_commission
             FROM referrals r
             LEFT JOIN guest_transactions g ON g.referral_id = r.id
             LEFT JOIN commissions c ON c.referral_id = r.id
@@ -211,7 +211,7 @@ class StaffIdentityService
         $sql = 'SELECT sri.*, s.name AS staff_name, s.role AS staff_role
             FROM staff_referral_identities sri
             JOIN staff s ON s.id = sri.staff_id
-            WHERE sri.business_id = ? AND sri.status = "active"';
+            WHERE sri.business_id = ? AND sri.status = \'active\'';
 
         $params = [$businessId];
 
@@ -219,7 +219,7 @@ class StaffIdentityService
             $sql .= ' AND EXISTS (
                 SELECT 1 FROM referrals r 
                 WHERE r.staff_identity_id = sri.id 
-                AND DATE_FORMAT(r.created_at, "%Y-%m") = ?
+                AND to_char(r.created_at, \'YYYY-MM\') = ?
             )';
             $params[] = $period;
         }
@@ -244,14 +244,14 @@ class StaffIdentityService
 
         $sql = 'SELECT 
             COUNT(r.id) AS total_referrals,
-            SUM(CASE WHEN r.status = "verified" THEN 1 ELSE 0 END) AS verified_count,
-            SUM(CASE WHEN r.status = "accepted" THEN 1 ELSE 0 END) AS accepted_count,
-            SUM(CASE WHEN r.status = "redeemed" THEN 1 ELSE 0 END) AS redeemed_count,
-            SUM(CASE WHEN r.status IN ("converted","settled") THEN 1 ELSE 0 END) AS converted_count,
-            IFNULL(SUM(CASE WHEN r.status IN ("converted","settled") THEN g.gross_amount ELSE 0 END), 0) AS total_guest_value,
-            IFNULL(SUM(CASE WHEN r.status IN ("converted","settled") THEN c.amount ELSE 0 END), 0) AS total_commission,
-            IFNULL(SUM(CASE WHEN c.status = "settled" THEN c.amount ELSE 0 END), 0) AS settled_commission,
-            IFNULL(SUM(CASE WHEN c.status IN ("pending","confirmed") THEN c.amount ELSE 0 END), 0) AS pending_commission
+            SUM(CASE WHEN r.status = \'verified\' THEN 1 ELSE 0 END) AS verified_count,
+            SUM(CASE WHEN r.status = \'accepted\' THEN 1 ELSE 0 END) AS accepted_count,
+            SUM(CASE WHEN r.status = \'redeemed\' THEN 1 ELSE 0 END) AS redeemed_count,
+            SUM(CASE WHEN r.status IN (\'converted\',\'settled\') THEN 1 ELSE 0 END) AS converted_count,
+            COALESCE(SUM(CASE WHEN r.status IN (\'converted\',\'settled\') THEN g.gross_amount ELSE 0 END), 0) AS total_guest_value,
+            COALESCE(SUM(CASE WHEN r.status IN (\'converted\',\'settled\') THEN c.amount ELSE 0 END), 0) AS total_commission,
+            COALESCE(SUM(CASE WHEN c.status = \'settled\' THEN c.amount ELSE 0 END), 0) AS settled_commission,
+            COALESCE(SUM(CASE WHEN c.status IN (\'pending\',\'confirmed\') THEN c.amount ELSE 0 END), 0) AS pending_commission
             FROM referrals r
             LEFT JOIN guest_transactions g ON g.referral_id = r.id
             LEFT JOIN commissions c ON c.referral_id = r.id
@@ -260,7 +260,7 @@ class StaffIdentityService
         $params = [$identityId];
 
         if ($period) {
-            $sql .= ' AND DATE_FORMAT(r.created_at, "%Y-%m") = ?';
+            $sql .= ' AND to_char(r.created_at, \'YYYY-MM\') = ?';
             $params[] = $period;
         }
 

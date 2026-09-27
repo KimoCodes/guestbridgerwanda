@@ -1,1 +1,3 @@
+# Payment receipts are private: never serve them over HTTP.
+# (They are read through public/receipt.php, which streams from disk.)
 Require all denied

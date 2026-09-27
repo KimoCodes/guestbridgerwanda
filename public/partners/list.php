@@ -60,10 +60,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($errors)) {
             $stmt = $pdo->prepare('INSERT INTO featured_listings (business_id, featured_month, status, note, created_by_user_id)
                 VALUES (?, ?, ?, ?, ?)
-                ON DUPLICATE KEY UPDATE
-                    status = VALUES(status),
-                    note = VALUES(note),
-                    created_by_user_id = VALUES(created_by_user_id)');
+                ON CONFLICT (business_id, featured_month) DO UPDATE SET
+                    status = EXCLUDED.status,
+                    note = EXCLUDED.note,
+                    created_by_user_id = EXCLUDED.created_by_user_id');
             $stmt->execute([$featured_business_id, $featured_month, $status, $note !== '' ? $note : null, $user['id']]);
             flash_set('Featured listing simulation saved.');
             header('Location: partners.php?featured_month=' . urlencode($featured_month) . ($search_query !== '' ? '&q=' . urlencode($search_query) : ''));
@@ -124,7 +124,7 @@ if ($city_filter !== '') {
     $query .= ' AND b.city = ?';
     $params[] = $city_filter;
 }
-$query .= ' ORDER BY (fl.status = "active") DESC, b.name';
+$query .= ' ORDER BY (fl.status = \'active\') DESC, b.name';
 $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $partners = $stmt->fetchAll();
@@ -134,7 +134,7 @@ $featured_stmt = $pdo->prepare('SELECT fl.*, b.name AS business_name, b.business
     JOIN businesses b ON b.id = fl.business_id
     LEFT JOIN users u ON u.id = fl.created_by_user_id
     WHERE fl.featured_month = ?
-    ORDER BY (fl.status = "active") DESC, b.name');
+    ORDER BY (fl.status = \'active\') DESC, b.name');
 $featured_stmt->execute([$featured_month]);
 $featured_rows = $featured_stmt->fetchAll();
 ?>

@@ -18,9 +18,9 @@ class BillingService
     public function calculatePlatformFee(int $business_id, string $billing_month): array
     {
         // Get total referral value for the month
-        $stmt = $this->pdo->prepare('SELECT IFNULL(SUM(c.amount), 0) AS total_value
+        $stmt = $this->pdo->prepare('SELECT COALESCE(SUM(c.amount), 0) AS total_value
             FROM commissions c
-            WHERE c.source_business_id = ? AND c.month = ? AND c.status IN ("confirmed","reconciled","settled")');
+            WHERE c.source_business_id = ? AND c.month = ? AND c.status IN (\'confirmed\',\'reconciled\',\'settled\')');
         $stmt->execute([$business_id, $billing_month]);
         $total_referral_value = (float) $stmt->fetchColumn();
 
@@ -43,7 +43,7 @@ class BillingService
     private function getApplicableTier(float $value): ?array
     {
         $stmt = $this->pdo->prepare('SELECT * FROM platform_fee_tiers 
-            WHERE status = "active" 
+            WHERE status = \'active\' 
             AND min_value <= ? 
             AND (max_value IS NULL OR max_value >= ?)
             ORDER BY min_value DESC LIMIT 1');
@@ -59,17 +59,17 @@ class BillingService
         $fee_calc = $this->calculatePlatformFee($business_id, $billing_month);
 
         // Get total commission earned
-        $stmt = $this->pdo->prepare('SELECT IFNULL(SUM(amount), 0) FROM commissions WHERE source_business_id = ? AND month = ?');
+        $stmt = $this->pdo->prepare('SELECT COALESCE(SUM(amount), 0) FROM commissions WHERE source_business_id = ? AND month = ?');
         $stmt->execute([$business_id, $billing_month]);
         $total_commission = (float) $stmt->fetchColumn();
 
         $stmt = $this->pdo->prepare('INSERT INTO billing_periods 
             (business_id, period_month, total_referral_value, total_commission_earned, platform_fee_amount, status) 
             VALUES (?, ?, ?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE
-                total_referral_value = VALUES(total_referral_value),
-                total_commission_earned = VALUES(total_commission_earned),
-                platform_fee_amount = VALUES(platform_fee_amount),
+            ON CONFLICT (business_id, period_month) DO UPDATE SET
+                total_referral_value = EXCLUDED.total_referral_value,
+                total_commission_earned = EXCLUDED.total_commission_earned,
+                platform_fee_amount = EXCLUDED.platform_fee_amount,
                 updated_at = NOW()');
         $stmt->execute([
             $business_id,
@@ -100,7 +100,7 @@ class BillingService
         }
 
         // Check if invoice already exists
-        $stmt = $this->pdo->prepare('SELECT id FROM invoices WHERE business_id = ? AND billing_period_id = ? AND status != "cancelled"');
+        $stmt = $this->pdo->prepare('SELECT id FROM invoices WHERE business_id = ? AND billing_period_id = ? AND status != \'cancelled\'');
         $stmt->execute([$business_id, $billing_period['id']]);
         $existing = $stmt->fetchColumn();
         if ($existing) {
@@ -128,7 +128,7 @@ class BillingService
         $invoice_id = (int) $this->pdo->lastInsertId();
 
         // Update billing period status
-        $this->pdo->prepare('UPDATE billing_periods SET status = "invoiced" WHERE id = ?')->execute([$billing_period['id']]);
+        $this->pdo->prepare('UPDATE billing_periods SET status = \'invoiced\' WHERE id = ?')->execute([$billing_period['id']]);
 
         return $invoice_id;
     }
@@ -227,7 +227,7 @@ class BillingService
 
             // Update billing period if fully paid
             if ($new_status === 'paid' && $invoice['billing_period_id']) {
-                $this->pdo->prepare('UPDATE billing_periods SET status = "paid" WHERE id = ?')->execute([$invoice['billing_period_id']]);
+                $this->pdo->prepare('UPDATE billing_periods SET status = \'paid\' WHERE id = ?')->execute([$invoice['billing_period_id']]);
             }
 
             $this->pdo->commit();
@@ -243,9 +243,9 @@ class BillingService
      */
     public function updateOverdueInvoices(): int
     {
-        $stmt = $this->pdo->prepare('UPDATE invoices SET status = "overdue" 
-            WHERE status IN ("issued","pending","partially_paid") 
-            AND due_date < CURDATE()');
+        $stmt = $this->pdo->prepare('UPDATE invoices SET status = \'overdue\' 
+            WHERE status IN (\'issued\',\'pending\',\'partially_paid\') 
+            AND due_date < CURRENT_DATE');
         $stmt->execute([]);
         return $stmt->rowCount();
     }
@@ -255,6 +255,6 @@ class BillingService
      */
     public function getFeeTiers(): array
     {
-        return $this->pdo->query('SELECT * FROM platform_fee_tiers WHERE status = "active" ORDER BY min_value ASC')->fetchAll();
+        return $this->pdo->query('SELECT * FROM platform_fee_tiers WHERE status = \'active\' ORDER BY min_value ASC')->fetchAll();
     }
 }

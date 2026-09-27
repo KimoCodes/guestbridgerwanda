@@ -64,7 +64,7 @@ $staff_stmt = $pdo->prepare('SELECT id, name FROM staff WHERE business_id = ? OR
 $staff_stmt->execute([$business_id]);
 $staff_options = $staff_stmt->fetchAll();
 
-$where = 'WHERE sr.business_id = ? AND DATE_FORMAT(sr.created_at, "%Y-%m") = ?';
+$where = 'WHERE sr.business_id = ? AND to_char(sr.created_at, \'YYYY-MM\') = ?';
 $params = [$business_id, $month];
 if ($status_filter !== '') {
     $where .= ' AND sr.status = ?';
@@ -76,10 +76,10 @@ if ($staff_filter > 0) {
 }
 
 $stmt = $pdo->prepare('SELECT
-        IFNULL(SUM(sr.points),0) AS total_points,
-        IFNULL(SUM(CASE WHEN sr.status = "approved" THEN sr.points ELSE 0 END),0) AS approved_points,
-        IFNULL(SUM(CASE WHEN sr.status = "pending" THEN sr.points ELSE 0 END),0) AS pending_points,
-        IFNULL(SUM(CASE WHEN sr.status = "rejected" THEN sr.points ELSE 0 END),0) AS rejected_points,
+        COALESCE(SUM(sr.points),0) AS total_points,
+        COALESCE(SUM(CASE WHEN sr.status = \'approved\' THEN sr.points ELSE 0 END),0) AS approved_points,
+        COALESCE(SUM(CASE WHEN sr.status = \'pending\' THEN sr.points ELSE 0 END),0) AS pending_points,
+        COALESCE(SUM(CASE WHEN sr.status = \'rejected\' THEN sr.points ELSE 0 END),0) AS rejected_points,
         COUNT(*) AS reward_count
     FROM staff_rewards sr
     ' . $where);
@@ -87,8 +87,8 @@ $stmt->execute($params);
 $summary = $stmt->fetch();
 
 $stmt = $pdo->prepare('SELECT sr.staff_id, s.name AS staff_name,
-        IFNULL(SUM(CASE WHEN sr.status = "approved" THEN sr.points ELSE 0 END),0) AS approved_points,
-        IFNULL(SUM(CASE WHEN sr.status = "pending" THEN sr.points ELSE 0 END),0) AS pending_points,
+        COALESCE(SUM(CASE WHEN sr.status = \'approved\' THEN sr.points ELSE 0 END),0) AS approved_points,
+        COALESCE(SUM(CASE WHEN sr.status = \'pending\' THEN sr.points ELSE 0 END),0) AS pending_points,
         COUNT(*) AS referral_rewards
     FROM staff_rewards sr
     JOIN staff s ON s.id = sr.staff_id

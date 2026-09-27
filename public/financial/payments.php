@@ -98,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare('INSERT INTO transactions (payment_id, from_business_id, to_business_id, amount, method, reference) VALUES (?, ?, ?, ?, ?, ?)');
                 $stmt->execute([$payment_id, $commission['target_business_id'], $commission['source_business_id'], $amount, $method, $reference !== '' ? $reference : null]);
 
-                $paid_stmt = $pdo->prepare('SELECT IFNULL(SUM(amount),0) FROM payments WHERE commission_id = ? AND status != ?');
+                $paid_stmt = $pdo->prepare('SELECT COALESCE(SUM(amount),0) FROM payments WHERE commission_id = ? AND status != ?');
                 $paid_stmt->execute([$commission_id, 'disputed']);
                 $paid_total = (float)$paid_stmt->fetchColumn();
 
@@ -129,7 +129,7 @@ if ($month !== '' && !preg_match('/^\d{4}-\d{2}$/', $month)) {
     $month = date('Y-m');
 }
 
-$sql = 'SELECT IFNULL(SUM(p.amount),0) AS total_paid FROM payments p JOIN commissions c ON p.commission_id = c.id WHERE c.owed_to_business_id = ? AND DATE_FORMAT(p.paid_at, "%Y-%m") = ?';
+$sql = 'SELECT COALESCE(SUM(p.amount),0) AS total_paid FROM payments p JOIN commissions c ON p.commission_id = c.id WHERE c.owed_to_business_id = ? AND to_char(p.paid_at, \'YYYY-MM\') = ?';
 $params = [$business_id, $month];
 if ($partner_id > 0) {
     $sql .= ' AND c.source_business_id = ?';
@@ -145,7 +145,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
         JOIN commissions c ON p.commission_id = c.id
         JOIN referrals r ON c.referral_id = r.id
         JOIN businesses b2 ON c.source_business_id = b2.id
-        WHERE c.owed_to_business_id = ? AND DATE_FORMAT(p.paid_at, "%Y-%m") = ?';
+        WHERE c.owed_to_business_id = ? AND to_char(p.paid_at, \'YYYY-MM\') = ?';
     $params = [$business_id, $month];
     if ($partner_id > 0) {
         $sql .= ' AND c.source_business_id = ?';
@@ -180,7 +180,7 @@ $sql = 'SELECT p.*, c.referral_id, c.amount AS commission_amount, c.commission_p
     JOIN commissions c ON p.commission_id = c.id
     JOIN referrals r ON c.referral_id = r.id
     JOIN businesses b2 ON c.source_business_id = b2.id
-    WHERE c.owed_to_business_id = ? AND DATE_FORMAT(p.paid_at, "%Y-%m") = ?';
+    WHERE c.owed_to_business_id = ? AND to_char(p.paid_at, \'YYYY-MM\') = ?';
 $params = [$business_id, $month];
 if ($partner_id > 0) {
     $sql .= ' AND c.source_business_id = ?';
@@ -194,7 +194,7 @@ $payments = $stmt->fetchAll();
 $sql = 'SELECT c.id, r.referral_code, b2.name AS partner_name, c.amount, c.status FROM commissions c
     JOIN referrals r ON c.referral_id = r.id
     JOIN businesses b2 ON c.source_business_id = b2.id
-    WHERE c.owed_to_business_id = ? AND c.status IN ("confirmed","reconciled")';
+    WHERE c.owed_to_business_id = ? AND c.status IN (\'confirmed\',\'reconciled\')';
 $params = [$business_id];
 if ($partner_id > 0) {
     $sql .= ' AND c.source_business_id = ?';

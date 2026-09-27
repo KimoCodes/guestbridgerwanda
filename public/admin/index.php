@@ -8,15 +8,15 @@ $current_page = 'admin/index.php';
 
 $stmt = $pdo->query('SELECT
     (SELECT COUNT(*) FROM businesses) AS total_businesses,
-    (SELECT COUNT(*) FROM businesses WHERE status = "active") AS active_businesses,
+    (SELECT COUNT(*) FROM businesses WHERE status = \'active\') AS active_businesses,
     (SELECT COUNT(*) FROM users) AS total_users,
     (SELECT COUNT(*) FROM referrals) AS total_referrals,
-    (SELECT COUNT(*) FROM referrals WHERE status = "used") AS used_referrals,
-    (SELECT IFNULL(SUM(amount), 0) FROM commissions) AS total_commissions,
-    (SELECT IFNULL(SUM(amount), 0) FROM payments WHERE status = "verified") AS total_verified_payments,
-    (SELECT COUNT(*) FROM disputes WHERE status IN ("open", "pending")) AS open_disputes,
-    (SELECT COUNT(*) FROM partnerships WHERE status = "active") AS active_partnerships,
-    (SELECT COUNT(*) FROM platform_fees WHERE status = "simulated") AS pending_fees');
+    (SELECT COUNT(*) FROM referrals WHERE status = \'used\') AS used_referrals,
+    (SELECT COALESCE(SUM(amount), 0) FROM commissions) AS total_commissions,
+    (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = \'verified\') AS total_verified_payments,
+    (SELECT COUNT(*) FROM disputes WHERE status IN (\'open\', \'pending\')) AS open_disputes,
+    (SELECT COUNT(*) FROM partnerships WHERE status = \'active\') AS active_partnerships,
+    (SELECT COUNT(*) FROM platform_fees WHERE status = \'simulated\') AS pending_fees');
 $stats = $stmt->fetch();
 
 $stmt = $pdo->query('SELECT b.*, COUNT(DISTINCT u.id) AS user_count,

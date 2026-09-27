@@ -77,7 +77,7 @@ $stmt = $pdo->prepare('SELECT r.*,
     LEFT JOIN businesses sb ON sb.id = r.source_business_id 
     LEFT JOIN businesses tb ON tb.id = r.target_business_id
     LEFT JOIN staff s ON s.id = r.staff_id
-    WHERE r.target_business_id = ? AND r.status IN ("accepted","visited")
+    WHERE r.target_business_id = ? AND r.status IN (\'accepted\',\'visited\')
     ORDER BY r.created_at DESC');
 $stmt->execute([$business_id]);
 $available_referrals = $stmt->fetchAll();

@@ -41,7 +41,7 @@ $partner_stmt = $pdo->prepare('SELECT DISTINCT b.id, b.name
 $partner_stmt->execute([$business_id, $business_id, $business_id]);
 $partner_options = $partner_stmt->fetchAll();
 
-$where = 'WHERE (t.from_business_id = ? OR t.to_business_id = ?) AND DATE_FORMAT(t.transaction_date, "%Y-%m") = ?';
+$where = 'WHERE (t.from_business_id = ? OR t.to_business_id = ?) AND to_char(t.transaction_date, \'YYYY-MM\') = ?';
 $params = [$business_id, $business_id, $month];
 
 if ($partner_id > 0) {
@@ -86,10 +86,10 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
 }
 
 $stmt = $pdo->prepare('SELECT
-        IFNULL(SUM(CASE WHEN t.to_business_id = ? THEN t.amount ELSE 0 END),0) AS incoming,
-        IFNULL(SUM(CASE WHEN t.from_business_id = ? THEN t.amount ELSE 0 END),0) AS outgoing,
-        IFNULL(SUM(CASE WHEN t.status = "verified" THEN t.amount ELSE 0 END),0) AS verified_total,
-        IFNULL(SUM(CASE WHEN t.status = "disputed" THEN t.amount ELSE 0 END),0) AS disputed_total
+        COALESCE(SUM(CASE WHEN t.to_business_id = ? THEN t.amount ELSE 0 END),0) AS incoming,
+        COALESCE(SUM(CASE WHEN t.from_business_id = ? THEN t.amount ELSE 0 END),0) AS outgoing,
+        COALESCE(SUM(CASE WHEN t.status = \'verified\' THEN t.amount ELSE 0 END),0) AS verified_total,
+        COALESCE(SUM(CASE WHEN t.status = \'disputed\' THEN t.amount ELSE 0 END),0) AS disputed_total
     FROM transactions t
     ' . $where);
 $stmt->execute(array_merge([$business_id, $business_id], $params));
@@ -107,7 +107,7 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute(array_merge([$business_id], $params));
 $transactions = $stmt->fetchAll();
 
-$method_sql = 'SELECT t.method, COUNT(*) AS count_total, IFNULL(SUM(t.amount),0) AS amount_total
+$method_sql = 'SELECT t.method, COUNT(*) AS count_total, COALESCE(SUM(t.amount),0) AS amount_total
     FROM transactions t
     ' . $where . '
     GROUP BY t.method

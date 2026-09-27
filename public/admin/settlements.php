@@ -26,13 +26,13 @@ $stmt = $pdo->prepare("SELECT p.*, c.commission_percentage, c.month AS billing_m
 $stmt->execute();
 $payments = $stmt->fetchAll();
 
-$total_paid_stmt = $pdo->query("SELECT IFNULL(SUM(amount), 0) FROM payments WHERE status = 'verified'");
+$total_paid_stmt = $pdo->query("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'verified'");
 $total_paid = $total_paid_stmt->fetchColumn();
 
-$pending_verification_stmt = $pdo->query("SELECT IFNULL(SUM(amount), 0) FROM payments WHERE status = 'recorded'");
+$pending_verification_stmt = $pdo->query("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'recorded'");
 $pending_verification = $pending_verification_stmt->fetchColumn();
 
-$disputed_stmt = $pdo->query("SELECT IFNULL(SUM(amount), 0) FROM payments WHERE status = 'disputed'");
+$disputed_stmt = $pdo->query("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'disputed'");
 $disputed_amount = $disputed_stmt->fetchColumn();
 
 require_once __DIR__ . '/../../app/HTTP/helpers.php';

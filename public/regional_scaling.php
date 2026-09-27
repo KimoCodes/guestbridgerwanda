@@ -167,22 +167,22 @@ if ($selected_city !== '') {
 $stmt = $pdo->prepare('SELECT
         city,
         COUNT(*) AS business_count,
-        SUM(status = "active") AS active_businesses,
-        SUM(business_type = "hotel") AS hotel_count,
-        SUM(business_type = "tourism") AS tourism_count,
-        SUM(business_type = "transport") AS transport_count,
-        SUM(business_type = "restaurant") AS restaurant_count
+        SUM(CASE WHEN status = \'active\' THEN 1 ELSE 0 END) AS active_businesses,
+        SUM(CASE WHEN business_type = \'hotel\' THEN 1 ELSE 0 END) AS hotel_count,
+        SUM(CASE WHEN business_type = \'tourism\' THEN 1 ELSE 0 END) AS tourism_count,
+        SUM(CASE WHEN business_type = \'transport\' THEN 1 ELSE 0 END) AS transport_count,
+        SUM(CASE WHEN business_type = \'restaurant\' THEN 1 ELSE 0 END) AS restaurant_count
     FROM businesses
     ' . $city_where . '
     GROUP BY city
-    ORDER BY FIELD(city, "Kigali", "Kampala", "Nairobi", "Dar es Salaam"), city');
+    ORDER BY array_position(ARRAY[\'Kigali\', \'Kampala\', \'Nairobi\', \'Dar es Salaam\'], city), city');
 $stmt->execute($city_params);
 $city_rows = $stmt->fetchAll();
 
 $stmt = $pdo->prepare('SELECT b.city,
         COUNT(p.id) AS partnership_count,
-        SUM(p.status = "active") AS active_partnerships,
-        SUM(p.status = "pending") AS pending_partnerships
+        SUM(CASE WHEN p.status = \'active\' THEN 1 ELSE 0 END) AS active_partnerships,
+        SUM(CASE WHEN p.status = \'pending\' THEN 1 ELSE 0 END) AS pending_partnerships
     FROM businesses b
     LEFT JOIN partnerships p ON p.business_id = b.id
     ' . $business_city_where . '
@@ -201,7 +201,7 @@ if ($selected_city !== '') {
     $template_sql .= ' WHERE ct.city = ?';
     $template_params[] = $selected_city;
 }
-$template_sql .= ' ORDER BY FIELD(ct.city, "Kigali", "Kampala", "Nairobi", "Dar es Salaam"), ct.city, ct.business_type, ct.title';
+$template_sql .= ' ORDER BY array_position(ARRAY[\'Kigali\', \'Kampala\', \'Nairobi\', \'Dar es Salaam\'], ct.city), ct.city, ct.business_type, ct.title';
 $stmt = $pdo->prepare($template_sql);
 $stmt->execute($template_params);
 $templates = $stmt->fetchAll();
@@ -226,15 +226,15 @@ if ($selected_city !== '') {
     $checklist_sql .= ' WHERE oc.city = ?';
     $checklist_params[] = $selected_city;
 }
-$checklist_sql .= ' ORDER BY FIELD(oc.status, "blocked", "in_progress", "not_started", "done"), oc.city, oc.due_date IS NULL, oc.due_date, oc.title';
+$checklist_sql .= ' ORDER BY array_position(ARRAY[\'blocked\', \'in_progress\', \'not_started\', \'done\'], oc.status), oc.city, oc.due_date IS NULL, oc.due_date, oc.title';
 $stmt = $pdo->prepare($checklist_sql);
 $stmt->execute($checklist_params);
 $checklist_rows = $stmt->fetchAll();
 
 $stmt = $pdo->prepare('SELECT oc.city,
         COUNT(*) AS total_items,
-        SUM(oc.status = "done") AS done_items,
-        SUM(oc.status = "blocked") AS blocked_items
+        SUM(CASE WHEN oc.status = \'done\' THEN 1 ELSE 0 END) AS done_items,
+        SUM(CASE WHEN oc.status = \'blocked\' THEN 1 ELSE 0 END) AS blocked_items
     FROM onboarding_checklists oc
     ' . ($selected_city !== '' ? 'WHERE oc.city = ?' : '') . '
     GROUP BY oc.city');
@@ -246,11 +246,11 @@ foreach ($stmt->fetchAll() as $row) {
 
 $cohort_sql = 'SELECT city_rollup.city,
         city_rollup.business_count,
-        IFNULL(partner_rollup.partnership_count, 0) AS partnership_count,
-        IFNULL(partner_rollup.active_partnerships, 0) AS active_partnerships,
-        IFNULL(referral_rollup.referral_count, 0) AS referral_count,
-        IFNULL(referral_rollup.used_referrals, 0) AS used_referrals,
-        IFNULL(referral_rollup.commission_total, 0) AS commission_total
+        COALESCE(partner_rollup.partnership_count, 0) AS partnership_count,
+        COALESCE(partner_rollup.active_partnerships, 0) AS active_partnerships,
+        COALESCE(referral_rollup.referral_count, 0) AS referral_count,
+        COALESCE(referral_rollup.used_referrals, 0) AS used_referrals,
+        COALESCE(referral_rollup.commission_total, 0) AS commission_total
     FROM (
         SELECT city, COUNT(*) AS business_count
         FROM businesses
@@ -259,7 +259,7 @@ $cohort_sql = 'SELECT city_rollup.city,
     LEFT JOIN (
         SELECT b.city,
             COUNT(p.id) AS partnership_count,
-            SUM(p.status = "active") AS active_partnerships
+            SUM(CASE WHEN p.status = \'active\' THEN 1 ELSE 0 END) AS active_partnerships
         FROM businesses b
         LEFT JOIN partnerships p ON p.business_id = b.id
         GROUP BY b.city
@@ -267,8 +267,8 @@ $cohort_sql = 'SELECT city_rollup.city,
     LEFT JOIN (
         SELECT b.city,
             COUNT(r.id) AS referral_count,
-            SUM(r.status = "used") AS used_referrals,
-            IFNULL(SUM(c.amount),0) AS commission_total
+            SUM(CASE WHEN r.status = \'used\' THEN 1 ELSE 0 END) AS used_referrals,
+            COALESCE(SUM(c.amount),0) AS commission_total
         FROM businesses b
         LEFT JOIN referrals r ON r.source_business_id = b.id
         LEFT JOIN commissions c ON c.referral_id = r.id

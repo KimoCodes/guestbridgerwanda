@@ -131,14 +131,14 @@ $stmt->execute(array_merge([$month], $fee_scope_params));
 $fee_rows = $stmt->fetchAll();
 
 $stmt = $pdo->prepare('SELECT
-        IFNULL(SUM(subscription_fee),0) AS subscription_total,
-        IFNULL(SUM(referral_fee),0) AS referral_total,
-        IFNULL(SUM(analytics_fee),0) AS analytics_total,
-        IFNULL(SUM(featured_fee),0) AS featured_total,
-        IFNULL(SUM(total_amount),0) AS grand_total,
-        SUM(status = "approved") AS approved_count,
-        SUM(status = "waived") AS waived_count,
-        SUM(status = "simulated") AS simulated_count
+        COALESCE(SUM(subscription_fee),0) AS subscription_total,
+        COALESCE(SUM(referral_fee),0) AS referral_total,
+        COALESCE(SUM(analytics_fee),0) AS analytics_total,
+        COALESCE(SUM(featured_fee),0) AS featured_total,
+        COALESCE(SUM(total_amount),0) AS grand_total,
+        SUM(CASE WHEN status = \'approved\' THEN 1 ELSE 0 END) AS approved_count,
+        SUM(CASE WHEN status = \'waived\' THEN 1 ELSE 0 END) AS waived_count,
+        SUM(CASE WHEN status = \'simulated\' THEN 1 ELSE 0 END) AS simulated_count
     FROM platform_fees pf
     WHERE pf.billing_month = ?' . $fee_scope_sql);
 $stmt->execute(array_merge([$month], $fee_scope_params));

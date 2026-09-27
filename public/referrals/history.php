@@ -87,7 +87,7 @@ if (in_array($status_filter, ['created', 'used', 'expired'], true)) {
 $search_q = trim($_GET['q'] ?? '');
 if ($search_q !== '') {
     $like = '%' . $search_q . '%';
-    $sql .= ' AND (r.referral_code LIKE ? OR r.note LIKE ? OR source_b.name LIKE ? OR target_b.name LIKE ? OR IFNULL(s.name, "") LIKE ?';
+    $sql .= ' AND (r.referral_code LIKE ? OR r.note LIKE ? OR source_b.name LIKE ? OR target_b.name LIKE ? OR COALESCE(s.name, \'\') LIKE ?';
     array_push($params, $like, $like, $like, $like, $like);
     if (ctype_digit($search_q)) {
         $sql .= ' OR r.id = ?';

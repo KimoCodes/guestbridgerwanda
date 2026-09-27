@@ -56,10 +56,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->exec("CREATE TABLE IF NOT EXISTS platform_config (
             config_key VARCHAR(100) PRIMARY KEY,
             config_value TEXT NOT NULL,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );");
 
-        $upsert = $pdo->prepare('INSERT INTO platform_config (config_key, config_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE config_value = VALUES(config_value), updated_at = NOW()');
+        $upsert = $pdo->prepare('INSERT INTO platform_config (config_key, config_value) VALUES (?, ?) ON CONFLICT (config_key) DO UPDATE SET config_value = EXCLUDED.config_value, updated_at = NOW()');
         $upsert->execute(['referral_expiry_days', (string)$referral_expiry]);
         $upsert->execute(['invite_only_registration', (string)$invite_only]);
         $upsert->execute(['registration_invite_code', $invite_code]);
@@ -82,8 +82,8 @@ $seasonality = seasonality_settings($pdo);
 $pdo->exec("CREATE TABLE IF NOT EXISTS platform_config (
     config_key VARCHAR(100) PRIMARY KEY,
     config_value TEXT NOT NULL,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);");
 $config_rows = $pdo->query('SELECT config_key, config_value FROM platform_config')->fetchAll(PDO::FETCH_KEY_PAIR);
 $config_referral_expiry = $config_rows['referral_expiry_days'] ?? (string)REFERRAL_EXPIRY_DAYS;
 $config_invite_only = ($config_rows['invite_only_registration'] ?? (INVITE_ONLY_REGISTRATION ? '1' : '0')) === '1';

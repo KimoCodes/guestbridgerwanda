@@ -34,16 +34,16 @@ $all_time_stats = [];
 $stmt = $pdo->prepare('SELECT 
     r.staff_id,
     COUNT(DISTINCT r.id) AS total_referrals,
-    SUM(CASE WHEN r.status IN ("converted","settled") THEN 1 ELSE 0 END) AS successful_referrals,
-    IFNULL(SUM(CASE WHEN r.status IN ("converted","settled") THEN gt.eligible_amount ELSE 0 END), 0) AS total_guest_value,
-    IFNULL(SUM(ca.amount), 0) AS total_commission,
-    IFNULL(SUM(CASE WHEN ca.status = "pending" THEN ca.amount ELSE 0 END), 0) AS pending_commission,
-    IFNULL(SUM(CASE WHEN ca.status = "settled" THEN ca.amount ELSE 0 END), 0) AS settled_commission
+    SUM(CASE WHEN r.status IN (\'converted\',\'settled\') THEN 1 ELSE 0 END) AS successful_referrals,
+    COALESCE(SUM(CASE WHEN r.status IN (\'converted\',\'settled\') THEN gt.eligible_amount ELSE 0 END), 0) AS total_guest_value,
+    COALESCE(SUM(ca.amount), 0) AS total_commission,
+    COALESCE(SUM(CASE WHEN ca.status = \'pending\' THEN ca.amount ELSE 0 END), 0) AS pending_commission,
+    COALESCE(SUM(CASE WHEN ca.status = \'settled\' THEN ca.amount ELSE 0 END), 0) AS settled_commission
     FROM referrals r
     LEFT JOIN guest_transactions gt ON gt.referral_id = r.id
     LEFT JOIN commission_allocations ca ON ca.commission_id = (
         SELECT id FROM commissions WHERE referral_id = r.id LIMIT 1
-    ) AND ca.allocation_type = "employee" AND ca.recipient_employee_id = r.staff_id
+    ) AND ca.allocation_type = \'employee\' AND ca.recipient_employee_id = r.staff_id
     WHERE r.staff_id IN (SELECT id FROM staff WHERE business_id = ?)
     GROUP BY r.staff_id');
 $stmt->execute([$business_id]);

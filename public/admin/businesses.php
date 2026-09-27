@@ -48,7 +48,7 @@ if ($action === 'approve' && $business_id > 0 && $_SERVER['REQUEST_METHOD'] === 
     $stmt->execute([$business_id]);
     $biz = $stmt->fetch();
     if ($biz) {
-        $pdo->prepare('UPDATE businesses SET approval_status = "approved", status = "active" WHERE id = ?')->execute([$business_id]);
+        $pdo->prepare('UPDATE businesses SET approval_status = \'approved\', status = \'active\' WHERE id = ?')->execute([$business_id]);
         log_audit($pdo, $business_id, (int)$user['id'], 'business_approved', 'business', $business_id, ['approval_status' => $biz['approval_status']], ['approval_status' => 'approved'], $_SERVER['REMOTE_ADDR'] ?? null);
     }
     header("Location: businesses.php?updated=1");
@@ -61,7 +61,7 @@ if ($action === 'suspend' && $business_id > 0 && $_SERVER['REQUEST_METHOD'] === 
     $stmt->execute([$business_id]);
     $biz = $stmt->fetch();
     if ($biz) {
-        $pdo->prepare('UPDATE businesses SET approval_status = "suspended", status = "inactive" WHERE id = ?')->execute([$business_id]);
+        $pdo->prepare('UPDATE businesses SET approval_status = \'suspended\', status = \'inactive\' WHERE id = ?')->execute([$business_id]);
         log_audit($pdo, $business_id, (int)$user['id'], 'business_suspended', 'business', $business_id, ['approval_status' => $biz['approval_status']], ['approval_status' => 'suspended'], $_SERVER['REMOTE_ADDR'] ?? null);
     }
     header("Location: businesses.php?updated=1");
@@ -74,7 +74,7 @@ if ($action === 'reject' && $business_id > 0 && $_SERVER['REQUEST_METHOD'] === '
     $stmt->execute([$business_id]);
     $biz = $stmt->fetch();
     if ($biz) {
-        $pdo->prepare('UPDATE businesses SET approval_status = "rejected", status = "inactive" WHERE id = ?')->execute([$business_id]);
+        $pdo->prepare('UPDATE businesses SET approval_status = \'rejected\', status = \'inactive\' WHERE id = ?')->execute([$business_id]);
         log_audit($pdo, $business_id, (int)$user['id'], 'business_rejected', 'business', $business_id, ['approval_status' => $biz['approval_status']], ['approval_status' => 'rejected'], $_SERVER['REMOTE_ADDR'] ?? null);
     }
     header("Location: businesses.php?updated=1");

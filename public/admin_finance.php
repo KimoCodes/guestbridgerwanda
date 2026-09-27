@@ -40,12 +40,12 @@ if ($status_filter !== '') {
 }
 
 $stmt = $pdo->prepare('SELECT
-        IFNULL(SUM(d.total_amount),0) AS total_billed,
-        IFNULL(SUM(d.paid_amount),0) AS total_paid,
-        IFNULL(SUM(d.remaining_amount),0) AS total_remaining,
+        COALESCE(SUM(d.total_amount),0) AS total_billed,
+        COALESCE(SUM(d.paid_amount),0) AS total_paid,
+        COALESCE(SUM(d.remaining_amount),0) AS total_remaining,
         COUNT(*) AS debt_count,
-        SUM(d.status = "overdue") AS overdue_count,
-        SUM(d.status = "paid") AS paid_count
+        SUM(CASE WHEN d.status = \'overdue\' THEN 1 ELSE 0 END) AS overdue_count,
+        SUM(CASE WHEN d.status = \'paid\' THEN 1 ELSE 0 END) AS paid_count
     FROM hotel_debts d
     ' . $where);
 $stmt->execute($params);
@@ -60,7 +60,7 @@ $stmt = $pdo->prepare('SELECT d.*, debtor.name AS debtor_name, creditor.name AS 
 $stmt->execute($params);
 $debts = $stmt->fetchAll();
 
-$stmt = $pdo->prepare('SELECT d.debtor_business_id, debtor.name AS debtor_name, IFNULL(SUM(d.remaining_amount),0) AS outstanding
+$stmt = $pdo->prepare('SELECT d.debtor_business_id, debtor.name AS debtor_name, COALESCE(SUM(d.remaining_amount),0) AS outstanding
     FROM hotel_debts d
     JOIN businesses debtor ON debtor.id = d.debtor_business_id
     WHERE d.remaining_amount > 0

@@ -97,7 +97,7 @@ if ($month !== '' && !preg_match('/^\d{4}-\d{2}$/', $month)) {
     $month = date('Y-m');
 }
 
-$sql = 'SELECT IFNULL(SUM(amount),0) AS pending_total FROM commissions WHERE owed_to_business_id = ? AND status = ? AND month = ?';
+$sql = 'SELECT COALESCE(SUM(amount),0) AS pending_total FROM commissions WHERE owed_to_business_id = ? AND status = ? AND month = ?';
 $params = [$business_id, 'pending', $month];
 if ($partner_id > 0) {
     $sql .= ' AND source_business_id = ?';
@@ -107,7 +107,7 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $pending_total = $stmt->fetch()['pending_total'];
 
-$sql = 'SELECT IFNULL(SUM(amount),0) AS confirmed_total FROM commissions WHERE owed_to_business_id = ? AND status = ? AND month = ?';
+$sql = 'SELECT COALESCE(SUM(amount),0) AS confirmed_total FROM commissions WHERE owed_to_business_id = ? AND status = ? AND month = ?';
 $params = [$business_id, 'confirmed', $month];
 if ($partner_id > 0) {
     $sql .= ' AND source_business_id = ?';

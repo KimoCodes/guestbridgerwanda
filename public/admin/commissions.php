@@ -24,16 +24,16 @@ $stmt = $pdo->prepare("SELECT c.*, sb.name AS source_name, tb.name AS target_nam
 $stmt->execute();
 $commissions = $stmt->fetchAll();
 
-$total_amount_stmt = $pdo->query("SELECT IFNULL(SUM(amount), 0) FROM commissions");
+$total_amount_stmt = $pdo->query("SELECT COALESCE(SUM(amount), 0) FROM commissions");
 $total_amount = $total_amount_stmt->fetchColumn();
 
-$confirmed_stmt = $pdo->query("SELECT IFNULL(SUM(amount), 0) FROM commissions WHERE status = 'confirmed'");
+$confirmed_stmt = $pdo->query("SELECT COALESCE(SUM(amount), 0) FROM commissions WHERE status = 'confirmed'");
 $confirmed_amount = $confirmed_stmt->fetchColumn();
 
-$reconciled_stmt = $pdo->query("SELECT IFNULL(SUM(amount), 0) FROM commissions WHERE status = 'reconciled'");
+$reconciled_stmt = $pdo->query("SELECT COALESCE(SUM(amount), 0) FROM commissions WHERE status = 'reconciled'");
 $reconciled_amount = $reconciled_stmt->fetchColumn();
 
-$pending_stmt = $pdo->query("SELECT IFNULL(SUM(amount), 0) FROM commissions WHERE status = 'pending'");
+$pending_stmt = $pdo->query("SELECT COALESCE(SUM(amount), 0) FROM commissions WHERE status = 'pending'");
 $pending_amount = $pending_stmt->fetchColumn();
 
 require_once __DIR__ . '/../../app/HTTP/helpers.php';

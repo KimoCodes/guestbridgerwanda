@@ -31,22 +31,22 @@ $partners = [];
 $current_month = date('Y-m');
 $partner_stmt = $pdo->prepare('SELECT b.id, b.name, b.business_type, b.reliability_score, b.payout_compliance_score, b.guest_satisfaction_score,
         p.id AS partnership_id, p.commission_rate, p.agreement_text,
-        IFNULL(perf.referrals_count, 0) AS referrals_count,
-        IFNULL(perf.used_count, 0) AS used_count,
-        IFNULL(perf.month_count, 0) AS month_count,
+        COALESCE(perf.referrals_count, 0) AS referrals_count,
+        COALESCE(perf.used_count, 0) AS used_count,
+        COALESCE(perf.month_count, 0) AS month_count,
         fl.status AS featured_status
     FROM partnerships p
     JOIN businesses b ON b.id = CASE WHEN p.business_id = ? THEN p.partner_business_id ELSE p.business_id END
     LEFT JOIN (
         SELECT target_business_id,
             COUNT(*) AS referrals_count,
-            SUM(status = "used") AS used_count,
-            SUM(DATE_FORMAT(created_at, "%Y-%m") = ?) AS month_count
+            SUM(CASE WHEN status = \'used\' THEN 1 ELSE 0 END) AS used_count,
+            SUM(CASE WHEN to_char(created_at, \'YYYY-MM\') = ? THEN 1 ELSE 0 END) AS month_count
         FROM referrals
         WHERE source_business_id = ?
         GROUP BY target_business_id
     ) perf ON perf.target_business_id = b.id
-    LEFT JOIN featured_listings fl ON fl.business_id = b.id AND fl.featured_month = ? AND fl.status = "active"
+    LEFT JOIN featured_listings fl ON fl.business_id = b.id AND fl.featured_month = ? AND fl.status = \'active\'
     WHERE (p.business_id = ? OR p.partner_business_id = ?) AND p.status = ?
     ORDER BY b.name');
 $partner_stmt->execute([$business_id, $current_month, $business_id, $current_month, $business_id, $business_id, 'active']);
@@ -109,7 +109,7 @@ unset($partner);
 $benefit_stmt = $pdo->prepare('SELECT gb.partnership_id, gb.benefit_type, gb.benefit_value, gb.benefit_description, gb.min_spend, gb.valid_until
     FROM guest_benefits gb
     JOIN partnerships p ON p.id = gb.partnership_id
-    WHERE (p.business_id = ? OR p.partner_business_id = ?) AND p.status = "active" AND gb.status = "active"
+    WHERE (p.business_id = ? OR p.partner_business_id = ?) AND p.status = \'active\' AND gb.status = \'active\'
     ORDER BY gb.created_at DESC');
 $benefit_stmt->execute([$business_id, $business_id]);
 $all_benefits = $benefit_stmt->fetchAll();
@@ -420,3 +420,4 @@ document.getElementById('target_business_id')?.addEventListener('change', functi
 </script>
 </body>
 </html>
+'

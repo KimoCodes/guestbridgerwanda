@@ -24,48 +24,48 @@ if ($month !== '' && !preg_match('/^\d{4}-\d{2}$/', $month)) {
     $month = date('Y-m');
 }
 
-$stmt = $pdo->prepare('SELECT COUNT(*) AS total, SUM(status = "used") AS used_total FROM referrals WHERE source_business_id = ? AND DATE_FORMAT(created_at, "%Y-%m") = ?');
+$stmt = $pdo->prepare('SELECT COUNT(*) AS total, SUM(CASE WHEN status = \'used\' THEN 1 ELSE 0 END) AS used_total FROM referrals WHERE source_business_id = ? AND to_char(created_at, \'YYYY-MM\') = ?');
 $stmt->execute([$business_id, $month]);
 $referral_summary = $stmt->fetch();
 $total_referrals = (int)($referral_summary['total'] ?? 0);
 $used_referrals = (int)($referral_summary['used_total'] ?? 0);
 $conversion_rate = $total_referrals > 0 ? ($used_referrals / $total_referrals) * 100 : 0;
 
-$stmt = $pdo->prepare('SELECT IFNULL(SUM(amount),0) AS earned FROM commissions WHERE owed_to_business_id = ? AND month = ?');
+$stmt = $pdo->prepare('SELECT COALESCE(SUM(amount),0) AS earned FROM commissions WHERE owed_to_business_id = ? AND month = ?');
 $stmt->execute([$business_id, $month]);
 $month_earnings = $stmt->fetch()['earned'];
 
-$stmt = $pdo->prepare('SELECT b.name, COUNT(r.id) AS referrals_count, SUM(r.status = "used") AS used_count, IFNULL(SUM(c.amount),0) AS commission_total
+$stmt = $pdo->prepare('SELECT b.name, COUNT(r.id) AS referrals_count, SUM(CASE WHEN r.status = \'used\' THEN 1 ELSE 0 END) AS used_count, COALESCE(SUM(c.amount),0) AS commission_total
     FROM referrals r
     JOIN businesses b ON b.id = r.target_business_id
     LEFT JOIN commissions c ON c.referral_id = r.id
-    WHERE r.source_business_id = ? AND DATE_FORMAT(r.created_at, "%Y-%m") = ?
+    WHERE r.source_business_id = ? AND to_char(r.created_at, \'YYYY-MM\') = ?
     GROUP BY b.id, b.name
     ORDER BY referrals_count DESC, used_count DESC, b.name
     LIMIT 5');
 $stmt->execute([$business_id, $month]);
 $top_partners = $stmt->fetchAll();
 
-$stmt = $pdo->prepare('SELECT COALESCE(s.name, ?) AS staff_name, COUNT(r.id) AS referrals_count, SUM(r.status = "used") AS used_count, IFNULL(SUM(c.amount),0) AS commission_total
+$stmt = $pdo->prepare('SELECT COALESCE(s.name, ?) AS staff_name, COUNT(r.id) AS referrals_count, SUM(CASE WHEN r.status = \'used\' THEN 1 ELSE 0 END) AS used_count, COALESCE(SUM(c.amount),0) AS commission_total
     FROM referrals r
     LEFT JOIN staff s ON s.id = r.staff_id
     LEFT JOIN commissions c ON c.referral_id = r.id
-    WHERE r.source_business_id = ? AND DATE_FORMAT(r.created_at, "%Y-%m") = ?
+    WHERE r.source_business_id = ? AND to_char(r.created_at, \'YYYY-MM\') = ?
     GROUP BY staff_name
     ORDER BY referrals_count DESC, used_count DESC, staff_name
     LIMIT 10');
 $stmt->execute([$user['name'], $business_id, $month]);
 $staff_performance = $stmt->fetchAll();
 
-$stmt = $pdo->prepare('SELECT DATE_FORMAT(r.created_at, "%Y-%m") AS activity_month,
+$stmt = $pdo->prepare('SELECT to_char(r.created_at, \'YYYY-MM\') AS activity_month,
         COUNT(*) AS referrals_count,
-        SUM(r.status = "used") AS used_count,
-        IFNULL(SUM(c.amount),0) AS commission_total
+        SUM(CASE WHEN r.status = \'used\' THEN 1 ELSE 0 END) AS used_count,
+        COALESCE(SUM(c.amount),0) AS commission_total
     FROM referrals r
     LEFT JOIN commissions c ON c.referral_id = r.id
     WHERE r.source_business_id = ?
-        AND r.created_at >= DATE_SUB(STR_TO_DATE(CONCAT(?, "-01"), "%Y-%m-%d"), INTERVAL 5 MONTH)
-        AND r.created_at < DATE_ADD(STR_TO_DATE(CONCAT(?, "-01"), "%Y-%m-%d"), INTERVAL 1 MONTH)
+        AND r.created_at >= (to_date(? || \'-01\', \'YYYY-MM-DD\') - interval \'5 month\')
+        AND r.created_at < (to_date(? || \'-01\', \'YYYY-MM-DD\') + interval \'1 month\')
     GROUP BY activity_month
     ORDER BY activity_month ASC');
 $stmt->execute([$business_id, $month, $month]);
@@ -84,8 +84,8 @@ $forecast_label = $momentum > 0 ? 'Increasing' : ($momentum < 0 ? 'Softening' : 
 
 $stmt = $pdo->prepare('SELECT b.id, b.name, b.business_type,
         COUNT(r.id) AS referrals_count,
-        SUM(r.status = "used") AS used_count,
-        IFNULL(SUM(c.amount),0) AS commission_total,
+        SUM(CASE WHEN r.status = \'used\' THEN 1 ELSE 0 END) AS used_count,
+        COALESCE(SUM(c.amount),0) AS commission_total,
         AVG(c.commission_percentage) AS average_rate,
         b.reliability_score,
         b.payout_compliance_score,
@@ -94,8 +94,8 @@ $stmt = $pdo->prepare('SELECT b.id, b.name, b.business_type,
     JOIN businesses b ON b.id = r.target_business_id
     LEFT JOIN commissions c ON c.referral_id = r.id
     WHERE r.source_business_id = ?
-        AND r.created_at >= DATE_SUB(STR_TO_DATE(CONCAT(?, "-01"), "%Y-%m-%d"), INTERVAL 5 MONTH)
-        AND r.created_at < DATE_ADD(STR_TO_DATE(CONCAT(?, "-01"), "%Y-%m-%d"), INTERVAL 1 MONTH)
+        AND r.created_at >= (to_date(? || \'-01\', \'YYYY-MM-DD\') - interval \'5 month\')
+        AND r.created_at < (to_date(? || \'-01\', \'YYYY-MM-DD\') + interval \'1 month\')
     GROUP BY b.id, b.name, b.business_type, b.reliability_score, b.payout_compliance_score, b.guest_satisfaction_score
     ORDER BY referrals_count DESC, commission_total DESC
     LIMIT 8');
